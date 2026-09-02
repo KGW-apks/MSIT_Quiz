@@ -1,0 +1,138 @@
+:root {
+  color-scheme: dark;
+  --bg: #0f172a;
+  --surface: #1e293b;
+  --text: #f1f5f9;
+  --muted: #94a3b8;
+  --accent: #22c55e;
+  --accent-text: #04150a;
+  --error: #ef4444;
+  --radius: 14px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  min-height: 100dvh;
+}
+
+#app {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.view[hidden] {
+  display: none;
+}
+
+.view {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  flex: 1;
+  justify-content: center;
+}
+
+h1 {
+  font-size: 1.6rem;
+  margin: 0;
+  text-align: center;
+}
+
+.muted {
+  color: var(--muted);
+  margin: 0;
+  text-align: center;
+}
+
+.status-badge {
+  font-size: 1.3rem;
+  font-weight: 600;
+  text-align: center;
+  margin: 0;
+}
+
+.status-badge--error {
+  color: var(--error);
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+input[type="text"] {
+  font-size: 1.1rem;
+  padding: 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--muted);
+  background: var(--surface);
+  color: var(--text);
+}
+
+button {
+  font-size: 1.1rem;
+  font-weight: 600;
+  padding: 16px;
+  border-radius: var(--radius);
+  border: none;
+  background: var(--accent);
+  color: var(--accent-text);
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.prompt-small {
+  color: var(--muted);
+  font-size: 0.95rem;
+  text-align: center;
+  margin: 0 0 8px;
+}
+
+#question-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.option-button {
+  background: var(--surface);
+  color: var(--text);
+  border: 2px solid transparent;
+  text-align: left;
+  min-height: 56px;
+}
+
+.option-button:active {
+  border-color: var(--accent);
+}
+
+.toast {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  background: var(--error);
+  color: white;
+  padding: 12px 16px;
+  border-radius: var(--radius);
+  text-align: center;
+  z-index: 10;
+}

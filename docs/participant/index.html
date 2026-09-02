@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <title>Live-Quiz</title>
+  <link rel="stylesheet" href="../shared/styles.css">
+</head>
+<body>
+  <main id="app">
+    <div id="toast" class="toast" hidden></div>
+
+    <section id="view-loading" class="view">
+      <p class="muted">Lade...</p>
+    </section>
+
+    <section id="view-register" class="view" hidden>
+      <h1>Live-Quiz</h1>
+      <p class="muted">Gib deinen Namen ein, um mitzumachen.</p>
+      <form id="register-form">
+        <input id="name-input" type="text" placeholder="Dein Name" maxlength="40" required autocomplete="name">
+        <button type="submit">Los geht's</button>
+      </form>
+    </section>
+
+    <section id="view-lobby" class="view" hidden>
+      <p class="status-badge">Warte auf den Start...</p>
+      <p id="lobby-name" class="muted"></p>
+    </section>
+
+    <section id="view-question" class="view" hidden>
+      <p id="question-prompt-small" class="prompt-small"></p>
+      <div id="question-options"></div>
+    </section>
+
+    <section id="view-waiting" class="view" hidden>
+      <p class="status-badge">Antwort gesendet</p>
+      <p class="muted">Warte auf die naechste Frage...</p>
+    </section>
+
+    <section id="view-missed" class="view" hidden>
+      <p class="status-badge">Frage vorbei</p>
+      <p class="muted">Diese Frage ist geschlossen, bleib dran fuer die naechste.</p>
+    </section>
+
+    <section id="view-finished" class="view" hidden>
+      <h1>Quiz beendet</h1>
+      <p class="muted">Danke fuers Mitmachen!</p>
+    </section>
+
+    <section id="view-error" class="view" hidden>
+      <p class="status-badge status-badge--error">Etwas ist schiefgelaufen</p>
+      <p id="error-message" class="muted"></p>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
