@@ -3,8 +3,9 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
+set local search_path = public, extensions;
 
-select plan(15);
+select extensions.plan(15);
 
 -- Fixtures: drei Teilnehmer, eine Multiple-Choice- und zwei Schaetzfragen
 -- (eine normale, eine mit correct_value = 0 als Randfall).
@@ -37,13 +38,13 @@ update public.quiz_sessions set current_question_id = 'aaaaaaaa-0000-0000-0000-0
 set local role authenticated;
 set local request.jwt.claims to '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}';
 
-select is(
+select extensions.is(
   (select count(*)::int from public.question_answers),
   0,
   'question_answers liefert 0 Zeilen fuer authenticated (Loesung unlesbar)'
 );
 
-select throws_ok(
+select extensions.throws_ok(
   $$ insert into public.question_answers (question_id, correct_option, points) values ('aaaaaaaa-0000-0000-0000-000000000001', 'Berlin', 999) $$,
   '42501',
   null,
@@ -61,13 +62,13 @@ set local request.jwt.claims to '{"sub":"11111111-1111-1111-1111-111111111111","
 insert into public.responses (participant_id, question_id, selected_option)
 values ('11111111-1111-1111-1111-111111111111', 'aaaaaaaa-0000-0000-0000-000000000001', 'Paris');
 
-select is(
+select extensions.is(
   (select is_correct from public.responses where participant_id = '11111111-1111-1111-1111-111111111111' and question_id = 'aaaaaaaa-0000-0000-0000-000000000001'),
   true,
   'Multiple-Choice: richtige Antwort -> is_correct = true'
 );
 
-select is(
+select extensions.is(
   (select points_awarded from public.responses where participant_id = '11111111-1111-1111-1111-111111111111' and question_id = 'aaaaaaaa-0000-0000-0000-000000000001'),
   100,
   'Multiple-Choice: richtige Antwort -> volle Punktzahl'
@@ -84,13 +85,13 @@ set local request.jwt.claims to '{"sub":"22222222-2222-2222-2222-222222222222","
 insert into public.responses (participant_id, question_id, selected_option)
 values ('22222222-2222-2222-2222-222222222222', 'aaaaaaaa-0000-0000-0000-000000000001', 'Berlin');
 
-select is(
+select extensions.is(
   (select is_correct from public.responses where participant_id = '22222222-2222-2222-2222-222222222222' and question_id = 'aaaaaaaa-0000-0000-0000-000000000001'),
   false,
   'Multiple-Choice: falsche Antwort -> is_correct = false'
 );
 
-select is(
+select extensions.is(
   (select points_awarded from public.responses where participant_id = '22222222-2222-2222-2222-222222222222' and question_id = 'aaaaaaaa-0000-0000-0000-000000000001'),
   0,
   'Multiple-Choice: falsche Antwort -> 0 Punkte'
@@ -101,7 +102,7 @@ select is(
 insert into public.responses (participant_id, question_id, guess_value, is_correct, points_awarded)
 values ('22222222-2222-2222-2222-222222222222', 'aaaaaaaa-0000-0000-0000-000000000002', 40, true, 999);
 
-select is(
+select extensions.is(
   (select points_awarded from public.responses where participant_id = '22222222-2222-2222-2222-222222222222' and question_id = 'aaaaaaaa-0000-0000-0000-000000000002'),
   80,
   'Vom Client mitgeschicktes is_correct/points_awarded wird vom Trigger ueberschrieben (10 von 50 daneben -> 80 Punkte)'
@@ -118,13 +119,13 @@ set local request.jwt.claims to '{"sub":"11111111-1111-1111-1111-111111111111","
 insert into public.responses (participant_id, question_id, guess_value)
 values ('11111111-1111-1111-1111-111111111111', 'aaaaaaaa-0000-0000-0000-000000000002', 50);
 
-select is(
+select extensions.is(
   (select points_awarded from public.responses where participant_id = '11111111-1111-1111-1111-111111111111' and question_id = 'aaaaaaaa-0000-0000-0000-000000000002'),
   100,
   'Schaetzfrage: exakter Treffer -> volle Punktzahl'
 );
 
-select is(
+select extensions.is(
   (select is_correct from public.responses where participant_id = '11111111-1111-1111-1111-111111111111' and question_id = 'aaaaaaaa-0000-0000-0000-000000000002'),
   true,
   'Schaetzfrage: exakter Treffer -> is_correct = true'
@@ -135,7 +136,7 @@ select is(
 insert into public.responses (participant_id, question_id, guess_value)
 values ('11111111-1111-1111-1111-111111111111', 'aaaaaaaa-0000-0000-0000-000000000003', 0);
 
-select is(
+select extensions.is(
   (select points_awarded from public.responses where participant_id = '11111111-1111-1111-1111-111111111111' and question_id = 'aaaaaaaa-0000-0000-0000-000000000003'),
   100,
   'Randfall correct_value=0: exakte Schaetzung 0 -> volle Punktzahl'
@@ -150,7 +151,7 @@ set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","
 insert into public.responses (participant_id, question_id, guess_value)
 values ('33333333-3333-3333-3333-333333333333', 'aaaaaaaa-0000-0000-0000-000000000003', 5);
 
-select is(
+select extensions.is(
   (select points_awarded from public.responses where participant_id = '33333333-3333-3333-3333-333333333333' and question_id = 'aaaaaaaa-0000-0000-0000-000000000003'),
   0,
   'Randfall correct_value=0: daneben geschaetzt -> 0 Punkte statt Division durch 0'
@@ -161,7 +162,7 @@ select is(
 insert into public.responses (participant_id, question_id, selected_option)
 values ('33333333-3333-3333-3333-333333333333', 'aaaaaaaa-0000-0000-0000-000000000001', 'Paris');
 
-select throws_ok(
+select extensions.throws_ok(
   $$ insert into public.responses (participant_id, question_id, selected_option) values ('33333333-3333-3333-3333-333333333333', 'aaaaaaaa-0000-0000-0000-000000000001', 'Paris') $$,
   '23505',
   null,
@@ -170,7 +171,7 @@ select throws_ok(
 
 -- 13: Antwort im Namen einer anderen Person wird von RLS blockiert.
 
-select throws_ok(
+select extensions.throws_ok(
   $$ insert into public.responses (participant_id, question_id, selected_option) values ('11111111-1111-1111-1111-111111111111', 'aaaaaaaa-0000-0000-0000-000000000003', 'x') $$,
   '42501',
   null,
@@ -182,16 +183,16 @@ reset request.jwt.claims;
 
 -- 14+15: latency_ms wird ab question_opened_at berechnet, ist bei nie aktiv geschalteten Fragen NULL.
 
-select ok(
+select extensions.ok(
   (select latency_ms from public.responses where participant_id = '11111111-1111-1111-1111-111111111111' and question_id = 'aaaaaaaa-0000-0000-0000-000000000001') >= 0,
   'latency_ms fuer die aktiv geschaltete Frage ist gesetzt und nicht negativ'
 );
 
-select is(
+select extensions.is(
   (select latency_ms from public.responses where participant_id = '11111111-1111-1111-1111-111111111111' and question_id = 'aaaaaaaa-0000-0000-0000-000000000002'),
   null,
   'latency_ms bleibt NULL fuer eine Frage, die nie current_question_id war'
 );
 
-select * from finish();
+select * from extensions.finish();
 rollback;
