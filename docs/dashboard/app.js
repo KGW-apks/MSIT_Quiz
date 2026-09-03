@@ -291,7 +291,7 @@ function renderProgression() {
 
   const hasData = questions.some((q) => responses.some((r) => r.question_id === q.id));
   document.getElementById('progression-empty').hidden = hasData;
-  document.getElementById('progression-chart').hidden = !hasData;
+  document.getElementById('progression-chart-wrap').hidden = !hasData;
 
   if (hasData) {
     renderProgressionChart(document.getElementById('progression-chart'), top, { instanceSetter: (c) => (progressionChart = c), instance: progressionChart });

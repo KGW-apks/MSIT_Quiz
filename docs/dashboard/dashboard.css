@@ -392,6 +392,19 @@
   justify-content: center;
 }
 
+/* Chart.js braucht bei responsive:true + maintainAspectRatio:false einen
+   Elternknoten mit FESTER Hoehe. Ohne das haengt die Hoehe des Canvas von
+   seinem eigenen Elternknoten ab, der wiederum (als Grid-Item mit
+   grid-row: auto) seine Hoehe vom Canvas-Inhalt ableiten will: ein
+   Resize-Feedback-Loop, der den Canvas ungebremst hochschaukelt (in der
+   Praxis beobachtet: >85000px, Tab haengt). Gleiches Prinzip wie bei
+   .hero-result-chart und .drilldown-chart-wrap, hier fuer die kompakte
+   Punkte-Verlauf-Ansicht bisher vergessen. */
+.progression-chart-wrap {
+  position: relative;
+  height: 220px;
+}
+
 .drilldown-overlay {
   position: fixed;
   inset: 0;
