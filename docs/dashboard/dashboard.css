@@ -93,6 +93,40 @@
   font-size: 0.95rem;
 }
 
+/* Fragen-Fortschritt ueber das ganze Quiz (nicht zu verwechseln mit
+   .hero-progress, das die Antwortquote der EINEN laufenden Frage zeigt). */
+.question-progress {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+/* Gleicher Grund fuer die doppelte Klasse wie bei .progress-fill weiter unten:
+   .progress-track (Basisregel) steht spaeter im File und wuerde die 10px
+   sonst wieder auf 16px ueberschreiben. */
+.progress-track.progress-track--question {
+  height: 10px;
+  flex: 1;
+}
+
+/* .progress-fill.progress-fill--question statt nur .progress-fill--question:
+   gleiche Spezifitaet wie die Basisregel .progress-fill (beide eine Klasse)
+   wuerde sonst rein von der Reihenfolge im Stylesheet entschieden - hier
+   stand die Basisregel zufaellig spaeter im File und gewann. Doppelte Klasse
+   erzwingt hoehere Spezifitaet, unabhaengig von der Reihenfolge. */
+.progress-fill.progress-fill--question {
+  background: linear-gradient(90deg, #1d4ed8, var(--db-accent-2) 55%, #7dd3fc);
+  box-shadow: 0 0 14px rgba(56, 189, 248, 0.45);
+}
+
+.question-progress-label {
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
 .dashboard-grid {
   display: grid;
   grid-template-columns: 2fr 1fr;
@@ -302,70 +336,19 @@
   color: var(--accent);
 }
 
-.leaderboard-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.leaderboard-row {
+#leaderboard-empty {
+  height: 260px;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 11px 14px;
-  border-radius: 14px;
-  background: rgba(148, 163, 184, 0.05);
-  border: 1px solid transparent;
-  cursor: pointer;
-  transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+  justify-content: center;
 }
 
-.leaderboard-row:hover {
-  transform: translateX(2px);
-  border-color: var(--db-border);
-  background: rgba(148, 163, 184, 0.09);
-}
-
-.leaderboard-rank {
-  width: 28px;
-  height: 28px;
-  flex-shrink: 0;
-  display: inline-grid;
-  place-items: center;
-  border-radius: 50%;
-  background: rgba(148, 163, 184, 0.14);
-  font-weight: 800;
-  font-size: 0.85rem;
-}
-
-.leaderboard-row.rank-1 .leaderboard-rank {
-  background: linear-gradient(145deg, #fde68a, var(--db-gold));
-  color: #3b2c02;
-  box-shadow: 0 0 14px rgba(251, 191, 36, 0.4);
-}
-
-.leaderboard-row.rank-2 .leaderboard-rank {
-  background: linear-gradient(145deg, #eef2f7, var(--db-silver));
-  color: #263041;
-}
-
-.leaderboard-row.rank-3 .leaderboard-rank {
-  background: linear-gradient(145deg, #f3bd93, var(--db-bronze));
-  color: #3a2211;
-}
-
-.leaderboard-name {
-  flex: 1;
-  font-weight: 600;
-}
-
-.leaderboard-points {
-  font-weight: 800;
-  color: var(--accent);
-  font-variant-numeric: tabular-nums;
+/* Gleiches Prinzip wie .progression-chart-wrap: fester Elternknoten fuers
+   Chart.js-Canvas, sonst Resize-Feedback-Loop (siehe dortiger Kommentar). */
+.leaderboard-chart-wrap {
+  position: relative;
+  height: 260px;
+  overflow-x: auto;
 }
 
 .button-link {
@@ -507,10 +490,6 @@
 .is-wrong {
   color: var(--error);
   font-weight: 700;
-}
-
-.leaderboard-list--full {
-  gap: 8px;
 }
 
 .drilldown-chart-wrap {

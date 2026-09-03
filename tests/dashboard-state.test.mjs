@@ -7,6 +7,7 @@ import {
   computeLeaderboard,
   computePointsProgression,
   computeClosingStats,
+  computeQuestionProgress,
 } from '../docs/shared/dashboard-state.js';
 
 test('isRevealed: nur closed/finished gelten als aufgedeckt', () => {
@@ -17,50 +18,70 @@ test('isRevealed: nur closed/finished gelten als aufgedeckt', () => {
   assert.equal(isRevealed(null), false);
 });
 
-test('aggregateMultipleChoice: zaehlt pro Option, markiert die richtige', () => {
+test('aggregateMultipleChoice: zaehlt pro Option, markiert die richtige, sammelt Waehler-Namen', () => {
   const question = { id: 'q1', options: ['Berlin', 'Paris', 'Rom'] };
-  const responses = [
-    { question_id: 'q1', selected_option: 'Paris' },
-    { question_id: 'q1', selected_option: 'Paris' },
-    { question_id: 'q1', selected_option: 'Berlin' },
-    { question_id: 'q2', selected_option: 'Paris' }, // andere Frage, zaehlt nicht mit
+  const participants = [
+    { id: 'p1', display_name: 'Anna' },
+    { id: 'p2', display_name: 'Ben' },
+    { id: 'p3', display_name: 'Chris' },
   ];
-  const result = aggregateMultipleChoice({ question, responses, correctOption: 'Paris' });
+  const responses = [
+    { question_id: 'q1', selected_option: 'Paris', participant_id: 'p1' },
+    { question_id: 'q1', selected_option: 'Paris', participant_id: 'p2' },
+    { question_id: 'q1', selected_option: 'Berlin', participant_id: 'p3' },
+    { question_id: 'q2', selected_option: 'Paris', participant_id: 'p1' }, // andere Frage, zaehlt nicht mit
+  ];
+  const result = aggregateMultipleChoice({ question, responses, participants, correctOption: 'Paris' });
   assert.deepEqual(result, [
-    { label: 'Berlin', count: 1, isCorrect: false },
-    { label: 'Paris', count: 2, isCorrect: true },
-    { label: 'Rom', count: 0, isCorrect: false },
+    { label: 'Berlin', count: 1, isCorrect: false, voters: ['Chris'] },
+    { label: 'Paris', count: 2, isCorrect: true, voters: ['Anna', 'Ben'] },
+    { label: 'Rom', count: 0, isCorrect: false, voters: [] },
   ]);
 });
 
-test('aggregateEstimation: wenige verschiedene Werte -> ein Balken pro Wert, sortiert', () => {
+test('aggregateMultipleChoice: unbekannte participant_id faellt auf "?" zurueck statt zu crashen', () => {
+  const question = { id: 'q1', options: ['Ja'] };
+  const responses = [{ question_id: 'q1', selected_option: 'Ja', participant_id: 'geloescht' }];
+  const result = aggregateMultipleChoice({ question, responses, participants: [], correctOption: 'Ja' });
+  assert.deepEqual(result[0].voters, ['?']);
+});
+
+test('aggregateEstimation: wenige verschiedene Werte -> ein Balken pro Wert, sortiert, mit Waehler-Namen', () => {
   const question = { id: 'q1' };
-  const responses = [
-    { question_id: 'q1', guess_value: 12 },
-    { question_id: 'q1', guess_value: 10 },
-    { question_id: 'q1', guess_value: 12 },
+  const participants = [
+    { id: 'p1', display_name: 'Anna' },
+    { id: 'p2', display_name: 'Ben' },
+    { id: 'p3', display_name: 'Chris' },
   ];
-  const result = aggregateEstimation({ question, responses, correctValue: 12 });
+  const responses = [
+    { question_id: 'q1', guess_value: 12, participant_id: 'p1' },
+    { question_id: 'q1', guess_value: 10, participant_id: 'p2' },
+    { question_id: 'q1', guess_value: 12, participant_id: 'p3' },
+  ];
+  const result = aggregateEstimation({ question, responses, participants, correctValue: 12 });
   assert.equal(result.binned, false);
   assert.deepEqual(result.bars, [
-    { label: '10', count: 1, isCorrect: false },
-    { label: '12', count: 2, isCorrect: true },
+    { label: '10', count: 1, isCorrect: false, voters: ['Ben'] },
+    { label: '12', count: 2, isCorrect: true, voters: ['Anna', 'Chris'] },
   ]);
 });
 
 test('aggregateEstimation: keine Antworten -> leere Balken', () => {
-  const result = aggregateEstimation({ question: { id: 'q1' }, responses: [] });
+  const result = aggregateEstimation({ question: { id: 'q1' }, responses: [], participants: [] });
   assert.deepEqual(result, { bars: [], binned: false });
 });
 
-test('aggregateEstimation: viele verschiedene Werte -> Buckets statt Einzelwerte', () => {
+test('aggregateEstimation: viele verschiedene Werte -> Buckets statt Einzelwerte, Waehler pro Bucket gesammelt', () => {
   const question = { id: 'q1' };
-  const responses = Array.from({ length: 20 }, (_, i) => ({ question_id: 'q1', guess_value: i }));
-  const result = aggregateEstimation({ question, responses, maxBars: 5 });
+  const participants = Array.from({ length: 20 }, (_, i) => ({ id: `p${i}`, display_name: `P${i}` }));
+  const responses = participants.map((p, i) => ({ question_id: 'q1', guess_value: i, participant_id: p.id }));
+  const result = aggregateEstimation({ question, responses, participants, maxBars: 5 });
   assert.equal(result.binned, true);
   assert.equal(result.bars.length, 5);
   const totalCount = result.bars.reduce((sum, b) => sum + b.count, 0);
   assert.equal(totalCount, 20);
+  const totalVoters = result.bars.reduce((sum, b) => sum + b.voters.length, 0);
+  assert.equal(totalVoters, 20);
 });
 
 test('computeLeaderboard: summiert Punkte, sortiert absteigend, berechnet Trefferquote und Latenz', () => {
@@ -129,4 +150,38 @@ test('computeClosingStats: findet schnellste richtige Antwort und schwerste Frag
 test('computeClosingStats: keine Antworten -> beide Werte null', () => {
   const result = computeClosingStats({ participants: [], responses: [], questions: [] });
   assert.deepEqual(result, { fastestCorrect: null, hardestQuestion: null });
+});
+
+const progressQuestions = [
+  { id: 'q1', position: 1 },
+  { id: 'q2', position: 2 },
+  { id: 'q3', position: 3 },
+];
+
+test('computeQuestionProgress: kein Session-Objekt oder lobby -> 0 von N', () => {
+  assert.deepEqual(computeQuestionProgress({ session: null, questions: progressQuestions }), { done: 0, total: 3 });
+  assert.deepEqual(
+    computeQuestionProgress({ session: { status: 'lobby', current_question_id: null }, questions: progressQuestions }),
+    { done: 0, total: 3 }
+  );
+});
+
+test('computeQuestionProgress: status open -> Fragen davor zaehlen als durch, die laufende noch nicht', () => {
+  const session = { status: 'open', current_question_id: 'q2' };
+  assert.deepEqual(computeQuestionProgress({ session, questions: progressQuestions }), { done: 1, total: 3 });
+});
+
+test('computeQuestionProgress: status closed -> die laufende Frage zaehlt jetzt mit dazu', () => {
+  const session = { status: 'closed', current_question_id: 'q2' };
+  assert.deepEqual(computeQuestionProgress({ session, questions: progressQuestions }), { done: 2, total: 3 });
+});
+
+test('computeQuestionProgress: status finished -> alle Fragen durch, unabhaengig von current_question_id', () => {
+  const session = { status: 'finished', current_question_id: 'q1' };
+  assert.deepEqual(computeQuestionProgress({ session, questions: progressQuestions }), { done: 3, total: 3 });
+});
+
+test('computeQuestionProgress: erste Frage offen -> 0 durch', () => {
+  const session = { status: 'open', current_question_id: 'q1' };
+  assert.deepEqual(computeQuestionProgress({ session, questions: progressQuestions }), { done: 0, total: 3 });
 });

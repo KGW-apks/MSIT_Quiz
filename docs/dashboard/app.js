@@ -12,12 +12,14 @@ import {
   computeLeaderboard,
   computePointsProgression,
   computeClosingStats,
+  computeQuestionProgress,
 } from '../shared/dashboard-state.js';
 
 const VIEWS = ['loading', 'empty', 'dashboard', 'error'];
 const TYPE_LABEL = { multiple_choice: 'Multiple-Choice', estimation: 'Schätzung' };
 const STATUS_LABEL = { lobby: 'Lobby', open: 'Frage läuft', closed: 'Ergebnis', finished: 'Quiz beendet' };
 const PROGRESSION_TOP_N = 6;
+const LEADERBOARD_TOP_N = 10; // deckt sich mit dem Rang-Farbverlauf bis Platz 10
 
 const LINE_PALETTE = ['#22c55e', '#38bdf8', '#f472b6', '#fbbf24', '#a78bfa', '#2dd4bf', '#fb923c', '#f87171'];
 
@@ -28,6 +30,7 @@ let responses = [];
 const revealedAnswers = new Map(); // question_id -> question_answers row, best-effort Cache
 
 let questionChart = null;
+let leaderboardChart = null;
 let progressionChart = null;
 let modalChart = null;
 
@@ -136,9 +139,20 @@ function render() {
   document.getElementById('session-status').textContent = STATUS_LABEL[session?.status] ?? 'Lobby';
   document.getElementById('participant-count').textContent = `${participants.length} angemeldet`;
 
+  renderQuestionProgressBar();
   renderHero();
   renderLeaderboard();
   renderProgression();
+}
+
+// Fortschritt ueber das GESAMTE Quiz (wie viele Fragen sind durch), nicht zu
+// verwechseln mit renderQuestionProgress() weiter unten, die die Antwortquote
+// der einen gerade laufenden Frage zeigt.
+function renderQuestionProgressBar() {
+  const { done, total } = computeQuestionProgress({ session, questions });
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+  document.getElementById('question-progress-fill').style.width = `${pct}%`;
+  document.getElementById('question-progress-label').textContent = `${done} von ${total} Fragen`;
 }
 
 function currentQuestion() {
@@ -196,9 +210,9 @@ function renderQuestionResult(question) {
 
   let bars;
   if (question.question_type === 'multiple_choice') {
-    bars = aggregateMultipleChoice({ question, responses, correctOption: answer?.correct_option ?? null });
+    bars = aggregateMultipleChoice({ question, responses, participants, correctOption: answer?.correct_option ?? null });
   } else {
-    const result = aggregateEstimation({ question, responses, correctValue: answer?.correct_value ?? null });
+    const result = aggregateEstimation({ question, responses, participants, correctValue: answer?.correct_value ?? null });
     bars = result.bars;
   }
 
@@ -224,12 +238,17 @@ function renderQuestionChart(bars) {
   const labels = bars.map((b) => b.label);
   const data = bars.map((b) => b.count);
   const colors = bars.map((b) => (b.isCorrect ? gradient(ctx, '#4ade80', '#16a34a') : gradient(ctx, '#60a5fa', '#1d4ed8')));
+  const voters = bars.map((b) => b.voters ?? []);
+
+  const tooltipCallbacks = {
+    afterLabel: (item) => formatVoterLines(voters[item.dataIndex]),
+  };
 
   if (!questionChart) {
     questionChart = new Chart(ctx, {
       type: 'bar',
       data: { labels, datasets: [{ data, backgroundColor: colors, borderRadius: 8, maxBarThickness: 64 }] },
-      options: chartBaseOptions({ showLegend: false }),
+      options: chartBaseOptions({ showLegend: false, tooltipCallbacks }),
     });
     return;
   }
@@ -237,7 +256,22 @@ function renderQuestionChart(bars) {
   questionChart.data.labels = labels;
   questionChart.data.datasets[0].data = data;
   questionChart.data.datasets[0].backgroundColor = colors;
+  questionChart.options.plugins.tooltip.callbacks = tooltipCallbacks;
   questionChart.update();
+}
+
+// Chart.js-Tooltip-Callback: Zeilen fuer die Namen, die auf diesen Balken
+// entfallen sind, damit man beim Hoovern sieht wer wie abgestimmt hat.
+function formatVoterLines(names) {
+  if (!names || names.length === 0) return ['Noch niemand'];
+  const maxShown = 8;
+  const shown = names.slice(0, maxShown);
+  const lines = [];
+  for (let i = 0; i < shown.length; i += 3) {
+    lines.push(shown.slice(i, i + 3).join(', '));
+  }
+  if (names.length > maxShown) lines.push(`+${names.length - maxShown} weitere`);
+  return lines;
 }
 
 function renderClosingStats() {
@@ -259,27 +293,93 @@ function renderClosingStats() {
 
 function renderLeaderboard() {
   const leaderboard = computeLeaderboard({ participants, responses });
-  const list = document.getElementById('leaderboard-top');
-  list.innerHTML = '';
+  const top = leaderboard.slice(0, LEADERBOARD_TOP_N);
 
-  for (const [index, entry] of leaderboard.slice(0, 5).entries()) {
-    list.appendChild(leaderboardRow(entry, index + 1));
+  document.getElementById('leaderboard-empty').hidden = leaderboard.length > 0;
+  document.getElementById('leaderboard-chart-wrap').hidden = leaderboard.length === 0;
+
+  if (leaderboard.length > 0) {
+    renderLeaderboardChart(document.getElementById('leaderboard-chart'), top, {
+      instance: leaderboardChart,
+      instanceSetter: (c) => (leaderboardChart = c),
+    });
   }
 
   document.getElementById('leaderboard-drilldown').onclick = () => openLeaderboardDrilldown(leaderboard);
 }
 
-function leaderboardRow(entry, rank) {
-  const li = document.createElement('li');
-  li.className = `leaderboard-row rank-${rank <= 3 ? rank : 'other'}`;
-  li.innerHTML = `
-    <span class="leaderboard-rank">${rank}</span>
-    <span class="leaderboard-name"></span>
-    <span class="leaderboard-points">${entry.totalPoints} Pkt</span>
-  `;
-  li.querySelector('.leaderboard-name').textContent = entry.participant.display_name;
-  li.addEventListener('click', () => openParticipantDrilldown(entry.participant));
-  return li;
+// Gold/Silber/Bronze fuer die Top 3, danach ein Blauverlauf: Platz 4 hellblau,
+// ab Platz 10 (und dahinter) Mitternachtsblau. Metallic-Look fuer die Top 3
+// per dreistufigem Gradient (hell-mittel-dunkel statt nur zwei Stops).
+const RANK_GOLD = ['#fef3c7', '#fbbf24', '#b45309'];
+const RANK_SILVER = ['#f8fafc', '#cbd5e1', '#64748b'];
+const RANK_BRONZE = ['#fde8d1', '#e0975a', '#7c4a1e'];
+
+function metallicGradient(ctx, stops) {
+  const g = ctx.createLinearGradient(0, 0, 0, 260);
+  g.addColorStop(0, stops[0]);
+  g.addColorStop(0.55, stops[1]);
+  g.addColorStop(1, stops[2]);
+  return g;
+}
+
+function blueShadeForRank(rank) {
+  const t = Math.min(1, Math.max(0, (rank - 4) / 6)); // Platz 4 -> 0, Platz 10+ -> 1
+  const h = 199 + 32 * t;
+  const s = 92 - 42 * t;
+  const l = 74 - 54 * t;
+  return `hsl(${h.toFixed(0)}, ${s.toFixed(0)}%, ${l.toFixed(0)}%)`;
+}
+
+function rankBarColor(ctx, rank) {
+  if (rank === 1) return metallicGradient(ctx, RANK_GOLD);
+  if (rank === 2) return metallicGradient(ctx, RANK_SILVER);
+  if (rank === 3) return metallicGradient(ctx, RANK_BRONZE);
+  return blueShadeForRank(rank);
+}
+
+function renderLeaderboardChart(canvasEl, leaderboard, { instance, instanceSetter }) {
+  const ctx = canvasEl.getContext('2d');
+  const labels = leaderboard.map((e) => e.participant.display_name);
+  const data = leaderboard.map((e) => e.totalPoints);
+  const colors = leaderboard.map((_, i) => rankBarColor(ctx, i + 1));
+
+  const tooltipCallbacks = {
+    title: (items) => `Platz ${items[0].dataIndex + 1} · ${items[0].label}`,
+    label: (item) => `${item.formattedValue} Punkte`,
+    afterLabel: (item) => {
+      const entry = leaderboard[item.dataIndex];
+      const accuracy = entry.answeredCount > 0 ? `${entry.correctCount}/${entry.answeredCount} richtig` : 'noch keine Antwort';
+      const latency = entry.avgLatencyMs != null ? `Ø ${(entry.avgLatencyMs / 1000).toFixed(1)}s` : null;
+      return latency ? `${accuracy} · ${latency}` : accuracy;
+    },
+  };
+  const options = chartBaseOptions({ showLegend: false, tooltipCallbacks });
+  options.onClick = (_event, elements) => {
+    if (elements.length === 0) return;
+    openParticipantDrilldown(leaderboard[elements[0].index].participant);
+  };
+  options.onHover = (event, elements) => {
+    if (event.native?.target) event.native.target.style.cursor = elements.length ? 'pointer' : 'default';
+  };
+
+  if (!instance) {
+    const chart = new Chart(ctx, {
+      type: 'bar',
+      data: { labels, datasets: [{ data, backgroundColor: colors, borderRadius: 8, maxBarThickness: 56 }] },
+      options,
+    });
+    instanceSetter(chart);
+    return;
+  }
+
+  instance.data.labels = labels;
+  instance.data.datasets[0].data = data;
+  instance.data.datasets[0].backgroundColor = colors;
+  instance.options.onClick = options.onClick;
+  instance.options.onHover = options.onHover;
+  instance.options.plugins.tooltip.callbacks = tooltipCallbacks;
+  instance.update();
 }
 
 function renderProgression() {
@@ -327,7 +427,7 @@ function renderProgressionChart(canvasEl, series, { instance, instanceSetter, le
   instance.update();
 }
 
-function chartBaseOptions({ showLegend }) {
+function chartBaseOptions({ showLegend, tooltipCallbacks = {} }) {
   return {
     responsive: true,
     maintainAspectRatio: false,
@@ -338,7 +438,13 @@ function chartBaseOptions({ showLegend }) {
         position: 'top',
         labels: { color: '#94a3b8', boxWidth: 12, font: { size: 11 } },
       },
-      tooltip: { backgroundColor: '#1e293b', titleColor: '#f1f5f9', bodyColor: '#f1f5f9' },
+      tooltip: {
+        backgroundColor: '#1e293b',
+        titleColor: '#f1f5f9',
+        bodyColor: '#f1f5f9',
+        padding: 10,
+        callbacks: tooltipCallbacks,
+      },
     },
     scales: {
       x: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(148,163,184,0.08)' } },
@@ -398,14 +504,12 @@ function closeModal() {
 
 function openLeaderboardDrilldown(leaderboard) {
   openModal('Gesamt-Leaderboard', (body) => {
-    const list = document.createElement('ol');
-    list.className = 'leaderboard-list leaderboard-list--full';
-    leaderboard.forEach((entry, i) => {
-      const row = leaderboardRow(entry, i + 1);
-      row.addEventListener('click', () => openParticipantDrilldown(entry.participant));
-      list.appendChild(row);
-    });
-    body.appendChild(list);
+    const wrap = document.createElement('div');
+    wrap.className = 'drilldown-chart-wrap';
+    const canvas = document.createElement('canvas');
+    wrap.appendChild(canvas);
+    body.appendChild(wrap);
+    renderLeaderboardChart(canvas, leaderboard, { instance: null, instanceSetter: (c) => (modalChart = c) });
   });
 }
 

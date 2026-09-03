@@ -11,59 +11,91 @@ function formatNumber(value) {
   return Number.isInteger(value) ? String(value) : value.toFixed(1);
 }
 
-export function aggregateMultipleChoice({ question, responses, correctOption = null }) {
+function nameLookup(participants) {
+  const byId = new Map(participants.map((p) => [p.id, p.display_name]));
+  return (participantId) => byId.get(participantId) ?? '?';
+}
+
+export function aggregateMultipleChoice({ question, responses, participants, correctOption = null }) {
   const options = question.options ?? [];
-  return options.map((option) => ({
-    label: option,
-    count: responses.filter((r) => r.question_id === question.id && r.selected_option === option).length,
-    isCorrect: correctOption !== null && option === correctOption,
-  }));
+  const nameOf = nameLookup(participants);
+  return options.map((option) => {
+    const matching = responses.filter((r) => r.question_id === question.id && r.selected_option === option);
+    return {
+      label: option,
+      count: matching.length,
+      isCorrect: correctOption !== null && option === correctOption,
+      voters: matching.map((r) => nameOf(r.participant_id)),
+    };
+  });
 }
 
 // Bis zu maxBars Balken, ein Balken pro genanntem Wert. Bei mehr verschiedenen
 // Werten als maxBars wird stattdessen in gleich breite Bereiche gebucketet,
 // damit der Graph bei sehr gestreuten Schaetzungen nicht unlesbar wird.
-export function aggregateEstimation({ question, responses, correctValue = null, maxBars = 12 }) {
-  const values = responses
-    .filter((r) => r.question_id === question.id && typeof r.guess_value === 'number')
-    .map((r) => r.guess_value);
+export function aggregateEstimation({ question, responses, participants, correctValue = null, maxBars = 12 }) {
+  const nameOf = nameLookup(participants);
+  const own = responses.filter((r) => r.question_id === question.id && typeof r.guess_value === 'number');
 
-  if (values.length === 0) return { bars: [], binned: false };
+  if (own.length === 0) return { bars: [], binned: false };
 
-  const distinct = [...new Set(values)].sort((a, b) => a - b);
+  const distinct = [...new Set(own.map((r) => r.guess_value))].sort((a, b) => a - b);
 
   if (distinct.length <= maxBars) {
     return {
       binned: false,
-      bars: distinct.map((value) => ({
-        label: formatNumber(value),
-        count: values.filter((v) => v === value).length,
-        isCorrect: correctValue !== null && value === correctValue,
-      })),
+      bars: distinct.map((value) => {
+        const matching = own.filter((r) => r.guess_value === value);
+        return {
+          label: formatNumber(value),
+          count: matching.length,
+          isCorrect: correctValue !== null && value === correctValue,
+          voters: matching.map((r) => nameOf(r.participant_id)),
+        };
+      }),
     };
   }
 
+  const values = own.map((r) => r.guess_value);
   const min = Math.min(...values);
   const max = Math.max(...values);
   const width = (max - min) / maxBars;
   const buckets = Array.from({ length: maxBars }, (_, i) => ({
     from: min + i * width,
     to: min + (i + 1) * width,
-    count: 0,
+    responses: [],
   }));
-  for (const value of values) {
-    const idx = Math.min(maxBars - 1, Math.floor((value - min) / width));
-    buckets[idx].count++;
+  for (const response of own) {
+    const idx = Math.min(maxBars - 1, Math.floor((response.guess_value - min) / width));
+    buckets[idx].responses.push(response);
   }
 
   return {
     binned: true,
     bars: buckets.map((b) => ({
       label: `${formatNumber(b.from)}–${formatNumber(b.to)}`,
-      count: b.count,
+      count: b.responses.length,
       isCorrect: correctValue !== null && correctValue >= b.from && correctValue <= b.to,
+      voters: b.responses.map((r) => nameOf(r.participant_id)),
     })),
   };
+}
+
+// Wie viele Fragen sind bereits abgeschlossen (durch), wie viele stehen noch aus.
+// "Durch" heisst: geschlossen, oder eine frueher positionierte Frage als die
+// aktuelle. Die laufende, noch offene Frage zaehlt bewusst noch nicht als durch.
+export function computeQuestionProgress({ session, questions }) {
+  const total = questions.length;
+  if (!session || session.status === 'lobby' || !session.current_question_id) {
+    return { done: 0, total };
+  }
+  if (session.status === 'finished') {
+    return { done: total, total };
+  }
+  const current = questions.find((q) => q.id === session.current_question_id);
+  if (!current) return { done: 0, total };
+  const before = questions.filter((q) => q.position < current.position).length;
+  return { done: session.status === 'closed' ? before + 1 : before, total };
 }
 
 export function computeLeaderboard({ participants, responses }) {

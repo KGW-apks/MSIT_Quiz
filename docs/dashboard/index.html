@@ -29,6 +29,13 @@
         <p id="participant-count" class="dashboard-participant-count"></p>
       </header>
 
+      <div class="question-progress">
+        <div class="progress-track progress-track--question">
+          <div id="question-progress-fill" class="progress-fill progress-fill--question"></div>
+        </div>
+        <p id="question-progress-label" class="question-progress-label"></p>
+      </div>
+
       <div class="dashboard-grid">
         <section class="panel hero-panel">
           <div class="hero-glow" aria-hidden="true"></div>
@@ -71,7 +78,10 @@
             <h2>Leaderboard</h2>
             <button id="leaderboard-drilldown" type="button" class="button-link">Alle anzeigen</button>
           </div>
-          <ol id="leaderboard-top" class="leaderboard-list"></ol>
+          <p id="leaderboard-empty" class="muted" hidden>Noch keine Punkte vergeben.</p>
+          <div id="leaderboard-chart-wrap" class="leaderboard-chart-wrap">
+            <canvas id="leaderboard-chart"></canvas>
+          </div>
         </section>
 
         <section class="panel progression-panel">
