@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Live-Quiz — Dashboard</title>
+  <link rel="stylesheet" href="../shared/styles.css">
+  <link rel="stylesheet" href="./dashboard.css">
+</head>
+<body class="presenter-body">
+  <main id="app" class="dashboard-app">
+    <div id="toast" class="toast" hidden></div>
+
+    <section id="view-loading" class="view">
+      <p class="muted">Lade...</p>
+    </section>
+
+    <section id="view-empty" class="view" hidden>
+      <p class="status-badge">Noch keine Fragen angelegt</p>
+      <p class="muted">Fragen und Loesungen werden per Supabase SQL-Editor eingetragen.</p>
+    </section>
+
+    <section id="view-dashboard" class="view dashboard-view" hidden>
+      <header class="dashboard-header">
+        <div class="dashboard-title">
+          <h1>Live-Quiz</h1>
+          <p id="session-status" class="status-pill"></p>
+        </div>
+        <p id="participant-count" class="dashboard-participant-count"></p>
+      </header>
+
+      <div class="dashboard-grid">
+        <section class="panel hero-panel">
+          <div id="hero-empty" class="hero-state">
+            <p class="hero-empty-label">Bereit fürs Quiz</p>
+            <p class="muted">Warte auf die erste Frage...</p>
+          </div>
+
+          <div id="hero-question" class="hero-state" hidden>
+            <div class="hero-question-head">
+              <span id="hero-type-badge" class="type-badge"></span>
+              <span id="hero-timer" class="hero-timer" hidden></span>
+            </div>
+            <h2 id="hero-prompt" class="hero-prompt"></h2>
+
+            <div id="hero-progress" class="hero-progress" hidden>
+              <div class="progress-track">
+                <div id="hero-progress-fill" class="progress-fill"></div>
+              </div>
+              <p id="hero-progress-label" class="muted"></p>
+            </div>
+
+            <div id="hero-result" class="hero-result" hidden>
+              <div class="hero-result-chart">
+                <canvas id="question-chart" height="220"></canvas>
+              </div>
+              <div id="hero-correct-callout" class="hero-correct-callout"></div>
+              <div id="hero-quick-stats" class="hero-quick-stats"></div>
+            </div>
+          </div>
+
+          <div id="hero-finished" class="hero-state" hidden>
+            <p class="hero-empty-label">Quiz beendet</p>
+            <div id="closing-stats" class="closing-stats"></div>
+          </div>
+        </section>
+
+        <section class="panel leaderboard-panel">
+          <div class="panel-head">
+            <h2>Leaderboard</h2>
+            <button id="leaderboard-drilldown" type="button" class="button-link">Alle anzeigen</button>
+          </div>
+          <ol id="leaderboard-top" class="leaderboard-list"></ol>
+        </section>
+
+        <section class="panel progression-panel">
+          <div class="panel-head">
+            <h2>Punkte-Verlauf</h2>
+            <button id="progression-drilldown" type="button" class="button-link">Alle anzeigen</button>
+          </div>
+          <p id="progression-empty" class="muted" hidden>Noch keine Frage abgeschlossen.</p>
+          <canvas id="progression-chart" height="220"></canvas>
+        </section>
+      </div>
+    </section>
+
+    <section id="view-error" class="view" hidden>
+      <p class="status-badge status-badge--error">Etwas ist schiefgelaufen</p>
+      <p id="error-message" class="muted"></p>
+    </section>
+  </main>
+
+  <div id="drilldown-overlay" class="drilldown-overlay" hidden>
+    <div class="drilldown-modal">
+      <div class="drilldown-modal-head">
+        <h2 id="drilldown-title"></h2>
+        <button id="drilldown-close" type="button" class="button-icon" aria-label="Schließen">✕</button>
+      </div>
+      <div id="drilldown-body" class="drilldown-body"></div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

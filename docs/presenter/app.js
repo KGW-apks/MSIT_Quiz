@@ -4,6 +4,7 @@
 
 import { supabaseClient } from '../shared/supabase-client.js';
 import { buildPresenterView } from '../shared/presenter-state.js';
+import { computeAutoCloseAt, shouldAutoClose } from '../shared/quiz-timer.js';
 
 const VIEWS = ['loading', 'empty', 'presenter', 'error'];
 
@@ -92,6 +93,47 @@ async function init() {
   render(participantCount ?? 0);
   wireControls();
   subscribeRealtime();
+  setInterval(autoCloseTick, 1000);
+}
+
+// Laeuft jede Sekunde: schliesst die offene Frage automatisch, wenn ihr Zeitlimit
+// abgelaufen ist oder alle Teilnehmer schon geantwortet haben (siehe shared/quiz-timer.js).
+// Selbstbegrenzend: sobald status != 'open' ist, greift die Regel nicht mehr,
+// kein extra Flag noetig gegen doppeltes Schliessen.
+let autoCloseInFlight = false;
+
+function autoCloseTick() {
+  if (autoCloseInFlight) return;
+  const dueForAutoClose = shouldAutoClose({
+    session,
+    questions,
+    responseCount: responses.filter((r) => r.question_id === session?.current_question_id).length,
+    participantCount: currentParticipantCount,
+    now: Date.now(),
+  });
+  if (!dueForAutoClose) {
+    renderCountdownOnly();
+    return;
+  }
+  autoCloseInFlight = true;
+  closeQuestion().finally(() => {
+    autoCloseInFlight = false;
+  });
+}
+
+// Zaehlt die Sekundenanzeige der offenen Zeile jede Sekunde runter, ohne die
+// ganze Tabelle neu aufzubauen (render() wuerde bei jedem Tick alle Buttons/Listener
+// neu erzeugen, unnoetig fuer eine reine Zahlenanzeige).
+function renderCountdownOnly() {
+  const deadline = computeAutoCloseAt({ session, questions });
+  const el = document.querySelector('[data-countdown]');
+  if (!el) return;
+  if (deadline === null) {
+    el.textContent = '';
+    return;
+  }
+  const secondsLeft = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+  el.textContent = `${secondsLeft}s`;
 }
 
 function subscribeRealtime() {
@@ -163,11 +205,12 @@ function render(participantCountOverride) {
       <td>${escapeHtml(row.question.prompt)}</td>
       <td>${TYPE_LABEL[row.question.question_type] ?? row.question.question_type}</td>
       <td></td>
+      <td class="muted"${row.badge === 'open' ? ' data-countdown' : ''}></td>
       <td>${row.responseCount}</td>
       <td></td>
     `;
     tr.children[3].appendChild(badge);
-    tr.children[5].appendChild(actionButton);
+    tr.children[6].appendChild(actionButton);
     tbody.appendChild(tr);
   }
 
@@ -175,6 +218,7 @@ function render(participantCountOverride) {
   finishButton.disabled = !view.canFinish;
 
   showView('presenter');
+  renderCountdownOnly();
 }
 
 function escapeHtml(text) {

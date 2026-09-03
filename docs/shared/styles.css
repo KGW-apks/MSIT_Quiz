@@ -33,8 +33,14 @@ body {
   flex-direction: column;
 }
 
-.view[hidden] {
-  display: none;
+/* Generischer Schutz gegen die Spezifitaetsfalle: jede eigene Regel mit
+   "display: ..." auf einem Element (.view, .hero-state, .drilldown-overlay, ...)
+   hat dieselbe Spezifitaet wie [hidden] und wuerde es sonst je nach Ladereihenfolge
+   ueberschreiben. !important stellt sicher, dass hidden IMMER gewinnt, unabhaengig
+   davon welche Klasse spaeter noch display setzt (Bug schon zweimal aufgetreten:
+   .view in Tag 2, .hero-state/.drilldown-overlay in Tag 4). */
+[hidden] {
+  display: none !important;
 }
 
 .view {

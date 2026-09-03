@@ -1,0 +1,268 @@
+/* Basis-Layout fuers Dashboard. Visueller Feinschliff (Farbverlaeufe, Formen,
+   Abstaende) folgt in einem eigenen Design-Durchgang auf dieser Grundlage. */
+
+#app.dashboard-app {
+  max-width: 1400px;
+}
+
+.dashboard-view {
+  justify-content: flex-start;
+  gap: 24px;
+}
+
+.dashboard-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.dashboard-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.dashboard-title h1 {
+  font-size: 1.8rem;
+}
+
+.status-pill {
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  grid-template-rows: auto auto;
+  gap: 20px;
+}
+
+.panel {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 20px;
+}
+
+.panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.hero-panel {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  min-height: 420px;
+}
+
+.leaderboard-panel {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.progression-panel {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+.hero-state {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  height: 100%;
+}
+
+.hero-empty-label {
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+
+.hero-question-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.type-badge {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.hero-timer {
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.15);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.hero-timer--urgent {
+  background: rgba(239, 68, 68, 0.2);
+  color: var(--error);
+}
+
+.hero-prompt {
+  font-size: 1.6rem;
+  margin: 0;
+}
+
+.progress-track {
+  width: 100%;
+  height: 14px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.15);
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--accent);
+  width: 0%;
+  transition: width 0.4s ease;
+}
+
+.hero-result-chart {
+  position: relative;
+  height: 220px;
+}
+
+.hero-correct-callout {
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.hero-quick-stats {
+  color: var(--muted);
+}
+
+.closing-stats p {
+  margin: 8px 0;
+}
+
+.leaderboard-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.leaderboard-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(148, 163, 184, 0.08);
+  cursor: pointer;
+}
+
+.leaderboard-rank {
+  font-weight: 700;
+  width: 1.5em;
+}
+
+.leaderboard-name {
+  flex: 1;
+}
+
+.leaderboard-points {
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.button-link {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 0.85rem;
+  padding: 4px 0;
+  cursor: pointer;
+}
+
+.button-link:hover {
+  color: var(--text);
+}
+
+.drilldown-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+}
+
+.drilldown-modal {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 20px;
+  max-width: 640px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.drilldown-modal-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.button-icon {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 1.2rem;
+  cursor: pointer;
+}
+
+.drilldown-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.drilldown-table th,
+.drilldown-table td {
+  text-align: left;
+  padding: 8px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+}
+
+.is-correct {
+  color: var(--accent);
+}
+
+.is-wrong {
+  color: var(--error);
+}
+
+.drilldown-chart-wrap {
+  height: 400px;
+}
+
+@media (max-width: 900px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+  .hero-panel,
+  .leaderboard-panel,
+  .progression-panel {
+    grid-column: 1;
+    grid-row: auto;
+  }
+}
