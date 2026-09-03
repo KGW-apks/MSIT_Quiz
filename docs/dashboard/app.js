@@ -19,7 +19,7 @@ const TYPE_LABEL = { multiple_choice: 'Multiple-Choice', estimation: 'Schätzung
 const STATUS_LABEL = { lobby: 'Lobby', open: 'Frage läuft', closed: 'Ergebnis', finished: 'Quiz beendet' };
 const PROGRESSION_TOP_N = 6;
 
-const LINE_PALETTE = ['#22c55e', '#38bdf8', '#f59e0b', '#a855f7', '#f472b6', '#2dd4bf', '#fb923c', '#f87171'];
+const LINE_PALETTE = ['#22c55e', '#38bdf8', '#f472b6', '#fbbf24', '#a78bfa', '#2dd4bf', '#fb923c', '#f87171'];
 
 let session = null;
 let questions = [];
@@ -223,7 +223,7 @@ function renderQuestionChart(bars) {
   const ctx = document.getElementById('question-chart').getContext('2d');
   const labels = bars.map((b) => b.label);
   const data = bars.map((b) => b.count);
-  const colors = bars.map((b) => (b.isCorrect ? gradient(ctx, '#4ade80', '#15803d') : gradient(ctx, '#38bdf8', '#0369a1')));
+  const colors = bars.map((b) => (b.isCorrect ? gradient(ctx, '#4ade80', '#16a34a') : gradient(ctx, '#60a5fa', '#1d4ed8')));
 
   if (!questionChart) {
     questionChart = new Chart(ctx, {
@@ -341,8 +341,8 @@ function chartBaseOptions({ showLegend }) {
       tooltip: { backgroundColor: '#1e293b', titleColor: '#f1f5f9', bodyColor: '#f1f5f9' },
     },
     scales: {
-      x: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(148,163,184,0.12)' } },
-      y: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(148,163,184,0.12)' }, beginAtZero: true },
+      x: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(148,163,184,0.08)' } },
+      y: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(148,163,184,0.08)' }, beginAtZero: true },
     },
   };
 }
