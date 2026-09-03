@@ -5,7 +5,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 
-select extensions.plan(15);
+select extensions.plan(16);
 
 -- Fixtures: drei Teilnehmer, eine Multiple-Choice- und zwei Schaetzfragen
 -- (eine normale, eine mit correct_value = 0 als Randfall).
@@ -97,7 +97,18 @@ select extensions.is(
   'Multiple-Choice: falsche Antwort -> 0 Punkte'
 );
 
+reset role;
+reset request.jwt.claims;
+
+-- Frage 2 wird zur aktuell offenen Frage (responses_insert_own verlangt seit
+-- der Retroactive-Answer-Fix-Migration, dass question_id == current_question_id
+-- und status = 'open' ist).
+update public.quiz_sessions set current_question_id = 'aaaaaaaa-0000-0000-0000-000000000002', status = 'open';
+
 -- 7: Client-Manipulation wird vom Trigger ueberschrieben, nicht uebernommen.
+
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}';
 
 insert into public.responses (participant_id, question_id, guess_value, is_correct, points_awarded)
 values ('22222222-2222-2222-2222-222222222222', 'aaaaaaaa-0000-0000-0000-000000000002', 40, true, 999);
@@ -131,7 +142,16 @@ select extensions.is(
   'Schaetzfrage: exakter Treffer -> is_correct = true'
 );
 
+reset role;
+reset request.jwt.claims;
+
+-- Frage 3 wird zur aktuell offenen Frage.
+update public.quiz_sessions set current_question_id = 'aaaaaaaa-0000-0000-0000-000000000003', status = 'open';
+
 -- 10+11: Randfall correct_value = 0.
+
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}';
 
 insert into public.responses (participant_id, question_id, guess_value)
 values ('11111111-1111-1111-1111-111111111111', 'aaaaaaaa-0000-0000-0000-000000000003', 0);
@@ -157,7 +177,37 @@ select extensions.is(
   'Randfall correct_value=0: daneben geschaetzt -> 0 Punkte statt Division durch 0'
 );
 
--- 12: doppelte Antwort auf dieselbe Frage verletzt den Unique-Constraint.
+reset role;
+reset request.jwt.claims;
+
+-- 12: Frage 3 wird geschlossen (current_question_id zeigt weiter auf sie, aber
+-- status != 'open'). User 2 hat auf Frage 3 noch nicht geantwortet und
+-- versucht es jetzt, nach dem Schliessen -> muss von RLS blockiert werden.
+-- Das ist genau der Cheat, den die Retroactive-Answer-Fix-Migration verhindert:
+-- ohne sie wuerde dieser INSERT durchgehen und der Trigger wuerde ganz normal
+-- Punkte vergeben.
+update public.quiz_sessions set status = 'closed';
+
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}';
+
+select extensions.throws_ok(
+  $$ insert into public.responses (participant_id, question_id, guess_value) values ('22222222-2222-2222-2222-222222222222', 'aaaaaaaa-0000-0000-0000-000000000003', 5) $$,
+  '42501',
+  null,
+  'Antwort auf eine bereits geschlossene Frage wird von RLS blockiert (kein nachtraegliches Antworten nach Reveal)'
+);
+
+reset role;
+reset request.jwt.claims;
+
+-- Zurueck auf Frage 1 als aktuell offene Frage fuer die verbleibenden Tests.
+update public.quiz_sessions set current_question_id = 'aaaaaaaa-0000-0000-0000-000000000001', status = 'open';
+
+-- 13: doppelte Antwort auf dieselbe Frage verletzt den Unique-Constraint.
+
+set local role authenticated;
+set local request.jwt.claims to '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}';
 
 insert into public.responses (participant_id, question_id, selected_option)
 values ('33333333-3333-3333-3333-333333333333', 'aaaaaaaa-0000-0000-0000-000000000001', 'Paris');
@@ -169,7 +219,7 @@ select extensions.throws_ok(
   'Doppelte Antwort derselben Person auf dieselbe Frage wird abgelehnt'
 );
 
--- 13: Antwort im Namen einer anderen Person wird von RLS blockiert.
+-- 14: Antwort im Namen einer anderen Person wird von RLS blockiert.
 
 select extensions.throws_ok(
   $$ insert into public.responses (participant_id, question_id, selected_option) values ('11111111-1111-1111-1111-111111111111', 'aaaaaaaa-0000-0000-0000-000000000003', 'x') $$,
@@ -181,18 +231,31 @@ select extensions.throws_ok(
 reset role;
 reset request.jwt.claims;
 
--- 14+15: latency_ms wird ab question_opened_at berechnet, ist bei nie aktiv geschalteten Fragen NULL.
+-- 15: latency_ms wird ab question_opened_at berechnet.
 
 select extensions.ok(
   (select latency_ms from public.responses where participant_id = '11111111-1111-1111-1111-111111111111' and question_id = 'aaaaaaaa-0000-0000-0000-000000000001') >= 0,
   'latency_ms fuer die aktiv geschaltete Frage ist gesetzt und nicht negativ'
 );
 
+-- 16: latency_ms bleibt NULL, wenn eine Frage bei Insert-Zeitpunkt nicht die
+-- aktuelle ist (Trigger-Eigenschutz). Ueber service_role getestet (RLS
+-- umgangen), weil ein normaler authenticated-Client diesen Fall dank der
+-- Retroactive-Answer-Fix-Migration ohnehin nicht mehr erreichen kann:
+-- current_question_id steht inzwischen auf Frage 1, Frage 2 ist also nicht
+-- mehr aktuell.
+set local role service_role;
+
+insert into public.responses (participant_id, question_id, guess_value)
+values ('33333333-3333-3333-3333-333333333333', 'aaaaaaaa-0000-0000-0000-000000000002', 50);
+
 select extensions.is(
-  (select latency_ms from public.responses where participant_id = '11111111-1111-1111-1111-111111111111' and question_id = 'aaaaaaaa-0000-0000-0000-000000000002'),
+  (select latency_ms from public.responses where participant_id = '33333333-3333-3333-3333-333333333333' and question_id = 'aaaaaaaa-0000-0000-0000-000000000002'),
   null,
-  'latency_ms bleibt NULL fuer eine Frage, die nie current_question_id war'
+  'latency_ms bleibt NULL fuer eine Frage, die bei Insert-Zeitpunkt nicht current_question_id war'
 );
+
+reset role;
 
 select * from extensions.finish();
 rollback;

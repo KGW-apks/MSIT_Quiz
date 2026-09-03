@@ -15,7 +15,6 @@ const STATUS_LABEL = { lobby: 'Lobby', open: 'Frage läuft', closed: 'Frage gesc
 let session = null;
 let questions = [];
 let responses = [];
-let sessionRowId = null;
 let currentParticipantCount = 0;
 
 function showView(name) {
@@ -72,7 +71,6 @@ async function init() {
   }
 
   session = sessionRow;
-  sessionRowId = sessionRow?.id ?? null;
 
   const [{ data: responseData, error: responsesError }, { count: participantCount, error: participantsError }] = await Promise.all([
     supabaseClient.from('responses').select('*'),
@@ -231,28 +229,45 @@ function wireControls() {
   document.getElementById('finish-button').addEventListener('click', () => finishQuiz());
 }
 
+// quiz_sessions ist fuer direkte Schreibzugriffe gesperrt (siehe Migration
+// presenter_control_rpc): jede Aenderung laeuft ueber diese RPC mit einem
+// Presenter-Passwort, sonst koennte jeder Teilnehmer ueber denselben
+// Anonymous-Auth-Zugang das Quiz kapern. Das Passwort wird einmal pro
+// Browser-Sitzung abgefragt und in sessionStorage gecacht, nicht in
+// localStorage, damit es nicht ueber Neustarts hinweg auf dem Geraet bleibt.
+function getPresenterSecret() {
+  let secret = sessionStorage.getItem('presenterSecret');
+  if (!secret) {
+    secret = window.prompt('Presenter-Passwort:') ?? '';
+    sessionStorage.setItem('presenterSecret', secret);
+  }
+  return secret;
+}
+
+async function callPresenterControl(action, targetQuestionId) {
+  const { error } = await supabaseClient.rpc('presenter_control', {
+    action,
+    target_question_id: targetQuestionId,
+    presenter_secret: getPresenterSecret(),
+  });
+  if (error) {
+    // Falsches Passwort gecacht -> beim naechsten Versuch neu abfragen statt
+    // dauerhaft mit demselben falschen Wert zu scheitern.
+    sessionStorage.removeItem('presenterSecret');
+    showToast(error.message);
+  }
+}
+
 async function openQuestion(questionId) {
-  const { error } = await supabaseClient
-    .from('quiz_sessions')
-    .update({ current_question_id: questionId, status: 'open' })
-    .eq('id', sessionRowId);
-  if (error) showToast(error.message);
+  await callPresenterControl('open', questionId);
 }
 
 async function closeQuestion() {
-  const { error } = await supabaseClient
-    .from('quiz_sessions')
-    .update({ status: 'closed' })
-    .eq('id', sessionRowId);
-  if (error) showToast(error.message);
+  await callPresenterControl('close', null);
 }
 
 async function finishQuiz() {
-  const { error } = await supabaseClient
-    .from('quiz_sessions')
-    .update({ status: 'finished' })
-    .eq('id', sessionRowId);
-  if (error) showToast(error.message);
+  await callPresenterControl('finish', null);
 }
 
 showView('loading');
