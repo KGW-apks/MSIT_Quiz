@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Live-Quiz — Presenter</title>
+  <link rel="stylesheet" href="../shared/styles.css">
+  <link rel="stylesheet" href="./presenter.css">
+</head>
+<body class="presenter-body">
+  <main id="app" class="presenter-app">
+    <div id="toast" class="toast" hidden></div>
+
+    <section id="view-loading" class="view">
+      <p class="muted">Lade...</p>
+    </section>
+
+    <section id="view-empty" class="view" hidden>
+      <p class="status-badge">Noch keine Fragen angelegt</p>
+      <p class="muted">Fragen und Loesungen werden per Supabase SQL-Editor eingetragen, nicht ueber diese Ansicht.</p>
+    </section>
+
+    <section id="view-presenter" class="view presenter-view" hidden>
+      <header class="presenter-header">
+        <p id="session-status" class="status-badge"></p>
+        <p id="participant-count" class="muted"></p>
+      </header>
+
+      <div class="question-table-wrap">
+        <table class="question-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Frage</th>
+              <th>Typ</th>
+              <th>Status</th>
+              <th>Antworten</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="question-rows"></tbody>
+        </table>
+      </div>
+
+      <footer class="presenter-footer">
+        <button id="finish-button" type="button" class="button-secondary">Quiz beenden</button>
+      </footer>
+    </section>
+
+    <section id="view-error" class="view" hidden>
+      <p class="status-badge status-badge--error">Etwas ist schiefgelaufen</p>
+      <p id="error-message" class="muted"></p>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

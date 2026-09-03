@@ -1,0 +1,80 @@
+/* Presenter laeuft auf Knuts eigenem Desktop-Bildschirm waehrend der Praesentation,
+   deshalb hier ueber die mobile-first Basis aus shared/styles.css hinaus verbreitert. */
+
+/* #app.presenter-app statt .presenter-app: die ID-Regel #app in shared/styles.css
+   ist spezifischer als eine reine Klassen-Regel und wuerde max-width sonst gewinnen. */
+#app.presenter-app {
+  max-width: 960px;
+}
+
+.question-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.presenter-view {
+  justify-content: flex-start;
+  gap: 24px;
+}
+
+.presenter-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.question-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.question-table th,
+.question-table td {
+  text-align: left;
+  padding: 12px;
+  border-bottom: 1px solid var(--surface);
+}
+
+.question-table th {
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+}
+
+.row-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.row-badge--open {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+.row-badge--closed {
+  background: var(--error);
+  color: white;
+}
+
+.question-table button {
+  padding: 10px 16px;
+  font-size: 0.95rem;
+}
+
+.presenter-footer {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.button-secondary {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--muted);
+}
