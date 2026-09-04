@@ -4,6 +4,13 @@
 
 import { supabaseClient } from '../shared/supabase-client.js';
 import { deriveViewState, parseGuessValue } from '../shared/quiz-state.js';
+import { installGlobalErrorHandlers, logError } from '../shared/error-log.js';
+
+// error_logs verlangt eine authentifizierte Session (RLS): ein Fehler VOR erfolgreichem
+// signInAnonymously (z.B. Netzwerkausfall genau in dem Moment) landet deshalb nur in der
+// Browser-Konsole des Geraets, nicht im Dashboard-Log. Alles danach (inkl. Ablehnung durch
+// die 150er-Teilnehmerobergrenze) ist erfasst.
+installGlobalErrorHandlers('participant');
 
 const VIEWS = ['loading', 'register', 'lobby', 'question', 'waiting', 'missed', 'finished', 'error'];
 
@@ -40,6 +47,7 @@ async function init() {
       .maybeSingle();
 
     if (error) {
+      logError('participant', error.message, { action: 'load_participant' });
       showError(error.message);
       return;
     }
@@ -78,7 +86,9 @@ async function onRegister(event) {
     await startQuizFlow();
   } catch (err) {
     submitButton.disabled = false;
-    showToast(err.message ?? String(err));
+    const message = err.message ?? String(err);
+    logError('participant', message, { action: 'register' });
+    showToast(message);
   }
 }
 
@@ -193,6 +203,7 @@ async function submitResponse(questionId, payload) {
   });
 
   if (error) {
+    logError('participant', error.message, { action: 'submit_response', question_id: questionId });
     showToast(`Antwort nicht angekommen: ${error.message}`);
     return false;
   }

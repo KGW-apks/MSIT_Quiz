@@ -12,6 +12,7 @@
 import { supabaseClient } from '../shared/supabase-client.js';
 import { computeAutoCloseAt, shouldAutoClose } from '../shared/quiz-timer.js';
 import { buildPresenterView } from '../shared/presenter-state.js';
+import { installGlobalErrorHandlers, logError } from '../shared/error-log.js';
 import {
   isRevealed,
   aggregateMultipleChoice,
@@ -21,6 +22,11 @@ import {
   computeClosingStats,
   computeQuestionProgress,
 } from '../shared/dashboard-state.js';
+
+// 'dashboard' als source deckt beide Tabs ab (Presenter ist seit 2026-09-04 kein
+// eigener Prozess mehr, siehe Kommentar oben); errorLogs.context.tab unterscheidet
+// bei Bedarf, aus welchem Tab heraus der Fehler ausgeloest wurde.
+installGlobalErrorHandlers('dashboard');
 
 const VIEWS = ['loading', 'empty', 'main', 'error'];
 const TYPE_LABEL = { multiple_choice: 'Multiple-Choice', estimation: 'Schätzung' };
@@ -39,6 +45,7 @@ let participants = [];
 let responses = [];
 let roundQuestions = []; // questions der aktuellen Runde, in Auswahlreihenfolge (session.round_question_ids)
 const revealedAnswers = new Map(); // question_id -> question_answers row, best-effort Cache
+let errorLogs = []; // neueste zuerst, siehe loadErrorLogs()
 
 let questionChart = null;
 let leaderboardChart = null;
@@ -54,6 +61,11 @@ function showView(name) {
 function showError(message) {
   document.getElementById('error-message').textContent = message;
   showView('error');
+}
+
+function failInit(action, error) {
+  logError('dashboard', error.message, { action });
+  showError(error.message);
 }
 
 function showToast(message) {
@@ -85,9 +97,9 @@ async function init() {
     supabaseClient.from('participants').select('*'),
   ]);
 
-  if (questionsError) return showError(questionsError.message);
-  if (sessionError) return showError(sessionError.message);
-  if (participantsError) return showError(participantsError.message);
+  if (questionsError) return failInit('load_questions', questionsError);
+  if (sessionError) return failInit('load_session', sessionError);
+  if (participantsError) return failInit('load_participants', participantsError);
 
   questions = questionData ?? [];
   if (questions.length === 0) {
@@ -99,8 +111,10 @@ async function init() {
   participants = participantData ?? [];
 
   const { data: responseData, error: responsesError } = await supabaseClient.from('responses').select('*');
-  if (responsesError) return showError(responsesError.message);
+  if (responsesError) return failInit('load_responses', responsesError);
   responses = responseData ?? [];
+
+  await loadErrorLogs();
 
   if (session && isRevealed(session) && session.current_question_id) {
     await ensureRevealedAnswer(session.current_question_id);
@@ -129,6 +143,47 @@ async function ensureRevealedAnswer(questionId) {
   return data;
 }
 
+// --- Fehler-Log-Panel -------------------------------------------------------
+// Zeigt Client-Fehler aus Teilnehmer- und Dashboard/Presenter-Oberflaeche live an
+// (siehe shared/error-log.js). Nur diese Session (keine participants-Zeile) darf
+// error_logs laut RLS ueberhaupt lesen, siehe Migration add_error_logs.
+
+const ERROR_LOG_LIMIT = 30;
+
+async function loadErrorLogs() {
+  const { data, error } = await supabaseClient
+    .from('error_logs')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(ERROR_LOG_LIMIT);
+  if (error) return; // kein failInit hier: ein Fehler beim Laden des Fehler-Logs soll nicht das ganze Dashboard blockieren
+  errorLogs = data ?? [];
+  renderErrorLog();
+}
+
+function renderErrorLog() {
+  const badge = document.getElementById('error-log-count');
+  badge.textContent = String(errorLogs.length);
+  badge.classList.toggle('error-log-badge--nonzero', errorLogs.length > 0);
+
+  const list = document.getElementById('error-log-list');
+  document.getElementById('error-log-empty').hidden = errorLogs.length > 0;
+  list.querySelectorAll('.error-log-entry').forEach((el) => el.remove());
+
+  for (const entry of errorLogs) {
+    const li = document.createElement('li');
+    li.className = 'error-log-entry';
+    const time = new Date(entry.created_at).toLocaleTimeString('de-DE');
+    li.innerHTML = `
+      <span class="error-log-time">${time}</span>
+      <span class="error-log-source">${entry.source}</span>
+      <span class="error-log-message"></span>
+    `;
+    li.querySelector('.error-log-message').textContent = entry.message;
+    list.appendChild(li);
+  }
+}
+
 function subscribeRealtime() {
   supabaseClient
     .channel('quiz-sessions-changes')
@@ -154,6 +209,14 @@ function subscribeRealtime() {
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'participants' }, (payload) => {
       participants.push(payload.new);
       render();
+    })
+    .subscribe();
+
+  supabaseClient
+    .channel('error-logs-changes')
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'error_logs' }, (payload) => {
+      errorLogs = [payload.new, ...errorLogs].slice(0, ERROR_LOG_LIMIT);
+      renderErrorLog();
     })
     .subscribe();
 }
@@ -705,6 +768,10 @@ async function callPresenterControl(action, targetQuestionId, roundSize = null) 
     if (error.code === '28000') {
       sessionStorage.removeItem('presenterSecret');
     }
+    // Bewusst auch falsche Passwoerter geloggt (nicht nur echte Server-Fehler):
+    // wiederholte 28000-Eintraege im Log waeren ein Kaperungsversuch, siehe
+    // Architekturentscheidung zum Presenter-Schutz. shouldLog() dedupt ohnehin.
+    logError('dashboard', error.message, { action: `presenter_control:${action}`, tab: 'presenter' });
     showToast(error.message);
     return false;
   }
