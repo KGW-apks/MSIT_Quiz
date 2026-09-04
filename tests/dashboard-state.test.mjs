@@ -109,9 +109,9 @@ test('computeLeaderboard: Teilnehmer ohne Antworten bekommt 0 Punkte und null-La
   assert.deepEqual(result, [{ participant: { id: 'p1', display_name: 'A' }, totalPoints: 0, answeredCount: 0, correctCount: 0, avgLatencyMs: null }]);
 });
 
-test('computePointsProgression: kumuliert Punkte in Positions-Reihenfolge', () => {
+test('computePointsProgression: kumuliert Punkte in der uebergebenen Rundenreihenfolge, nicht nach position', () => {
   const participants = [{ id: 'p1' }];
-  const questions = [
+  const roundQuestions = [
     { id: 'q2', position: 2 },
     { id: 'q1', position: 1 },
   ];
@@ -119,16 +119,21 @@ test('computePointsProgression: kumuliert Punkte in Positions-Reihenfolge', () =
     { participant_id: 'p1', question_id: 'q1', points_awarded: 50 },
     { participant_id: 'p1', question_id: 'q2', points_awarded: 30 },
   ];
-  const result = computePointsProgression({ participants, responses, questions });
-  assert.deepEqual(result, [{ participant: { id: 'p1' }, series: [50, 80] }]);
+  const result = computePointsProgression({ participants, responses, roundQuestions });
+  assert.deepEqual(result, [{ participant: { id: 'p1' }, series: [30, 80] }]);
 });
 
-test('computePointsProgression: fehlende Antwort zaehlt als 0, Reihe bleibt gleich lang wie Fragenzahl', () => {
+test('computePointsProgression: fehlende Antwort zaehlt als 0, Reihe bleibt gleich lang wie Rundengroesse', () => {
   const participants = [{ id: 'p1' }];
-  const questions = [{ id: 'q1', position: 1 }, { id: 'q2', position: 2 }];
+  const roundQuestions = [{ id: 'q1', position: 1 }, { id: 'q2', position: 2 }];
   const responses = [{ participant_id: 'p1', question_id: 'q1', points_awarded: 50 }];
-  const result = computePointsProgression({ participants, responses, questions });
+  const result = computePointsProgression({ participants, responses, roundQuestions });
   assert.deepEqual(result[0].series, [50, 50]);
+});
+
+test('computePointsProgression: keine Runde (leere Liste) -> leere Reihe pro Teilnehmer', () => {
+  const result = computePointsProgression({ participants: [{ id: 'p1' }], responses: [], roundQuestions: [] });
+  assert.deepEqual(result, [{ participant: { id: 'p1' }, series: [] }]);
 });
 
 test('computeClosingStats: findet schnellste richtige Antwort und schwerste Frage', () => {
@@ -152,36 +157,33 @@ test('computeClosingStats: keine Antworten -> beide Werte null', () => {
   assert.deepEqual(result, { fastestCorrect: null, hardestQuestion: null });
 });
 
-const progressQuestions = [
-  { id: 'q1', position: 1 },
-  { id: 'q2', position: 2 },
-  { id: 'q3', position: 3 },
-];
+const progressRoundIds = ['q1', 'q2', 'q3'];
 
-test('computeQuestionProgress: kein Session-Objekt oder lobby -> 0 von N', () => {
-  assert.deepEqual(computeQuestionProgress({ session: null, questions: progressQuestions }), { done: 0, total: 3 });
+test('computeQuestionProgress: kein Session-Objekt, lobby oder keine Runde -> 0 von N', () => {
+  assert.deepEqual(computeQuestionProgress({ session: null, roundQuestionIds: progressRoundIds }), { done: 0, total: 3 });
   assert.deepEqual(
-    computeQuestionProgress({ session: { status: 'lobby', current_question_id: null }, questions: progressQuestions }),
+    computeQuestionProgress({ session: { status: 'lobby', current_question_id: null }, roundQuestionIds: progressRoundIds }),
     { done: 0, total: 3 }
   );
+  assert.deepEqual(computeQuestionProgress({ session: { status: 'lobby' }, roundQuestionIds: null }), { done: 0, total: 0 });
 });
 
-test('computeQuestionProgress: status open -> Fragen davor zaehlen als durch, die laufende noch nicht', () => {
+test('computeQuestionProgress: status open -> Fragen davor (in Rundenreihenfolge) zaehlen als durch, die laufende noch nicht', () => {
   const session = { status: 'open', current_question_id: 'q2' };
-  assert.deepEqual(computeQuestionProgress({ session, questions: progressQuestions }), { done: 1, total: 3 });
+  assert.deepEqual(computeQuestionProgress({ session, roundQuestionIds: progressRoundIds }), { done: 1, total: 3 });
 });
 
 test('computeQuestionProgress: status closed -> die laufende Frage zaehlt jetzt mit dazu', () => {
   const session = { status: 'closed', current_question_id: 'q2' };
-  assert.deepEqual(computeQuestionProgress({ session, questions: progressQuestions }), { done: 2, total: 3 });
+  assert.deepEqual(computeQuestionProgress({ session, roundQuestionIds: progressRoundIds }), { done: 2, total: 3 });
 });
 
 test('computeQuestionProgress: status finished -> alle Fragen durch, unabhaengig von current_question_id', () => {
   const session = { status: 'finished', current_question_id: 'q1' };
-  assert.deepEqual(computeQuestionProgress({ session, questions: progressQuestions }), { done: 3, total: 3 });
+  assert.deepEqual(computeQuestionProgress({ session, roundQuestionIds: progressRoundIds }), { done: 3, total: 3 });
 });
 
 test('computeQuestionProgress: erste Frage offen -> 0 durch', () => {
   const session = { status: 'open', current_question_id: 'q1' };
-  assert.deepEqual(computeQuestionProgress({ session, questions: progressQuestions }), { done: 0, total: 3 });
+  assert.deepEqual(computeQuestionProgress({ session, roundQuestionIds: progressRoundIds }), { done: 0, total: 3 });
 });

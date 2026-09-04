@@ -1,10 +1,17 @@
 // DOM-Verdrahtung + Chart.js um die getestete Aggregationslogik in
-// shared/dashboard-state.js und shared/quiz-timer.js. Diese Datei selbst ist
-// reine UI-Verdrahtung ohne eigene Entscheidungslogik und bewusst nicht
-// durch eine automatisierte Test-Suite abgedeckt.
+// shared/dashboard-state.js, shared/presenter-state.js und shared/quiz-timer.js.
+// Diese Datei selbst ist reine UI-Verdrahtung ohne eigene Entscheidungslogik
+// und bewusst nicht durch eine automatisierte Test-Suite abgedeckt.
+//
+// Seit 2026-09-04 vereint diese Seite Dashboard UND Presenter als zwei Tabs
+// (vorher zwei getrennte Seiten, docs/presenter/ leitet nur noch hierher um).
+// Beide Tabs teilen sich einen einzigen Datenabruf und dieselben drei
+// Realtime-Subscriptions (quiz_sessions/responses/participants), render()
+// aktualisiert deshalb immer beide, unabhaengig davon welcher Tab sichtbar ist.
 
 import { supabaseClient } from '../shared/supabase-client.js';
-import { computeAutoCloseAt } from '../shared/quiz-timer.js';
+import { computeAutoCloseAt, shouldAutoClose } from '../shared/quiz-timer.js';
+import { buildPresenterView } from '../shared/presenter-state.js';
 import {
   isRevealed,
   aggregateMultipleChoice,
@@ -15,11 +22,14 @@ import {
   computeQuestionProgress,
 } from '../shared/dashboard-state.js';
 
-const VIEWS = ['loading', 'empty', 'dashboard', 'error'];
+const VIEWS = ['loading', 'empty', 'main', 'error'];
 const TYPE_LABEL = { multiple_choice: 'Multiple-Choice', estimation: 'Schätzung' };
-const STATUS_LABEL = { lobby: 'Lobby', open: 'Frage läuft', closed: 'Ergebnis', finished: 'Quiz beendet' };
+const DASHBOARD_STATUS_LABEL = { lobby: 'Lobby', open: 'Frage läuft', closed: 'Ergebnis', finished: 'Quiz beendet' };
+const PRESENTER_STATUS_LABEL = { lobby: 'Lobby', open: 'Frage läuft', closed: 'Frage geschlossen', finished: 'Quiz beendet' };
+const BADGE_LABEL = { pending: '–', open: 'Live', closed: 'Geschlossen' };
 const PROGRESSION_TOP_N = 6;
 const LEADERBOARD_TOP_N = 10; // deckt sich mit dem Rang-Farbverlauf bis Platz 10
+const DEFAULT_ROUND_SIZE = 10;
 
 const LINE_PALETTE = ['#22c55e', '#38bdf8', '#f472b6', '#fbbf24', '#a78bfa', '#2dd4bf', '#fb923c', '#f87171'];
 
@@ -27,6 +37,7 @@ let session = null;
 let questions = [];
 let participants = [];
 let responses = [];
+let roundQuestions = []; // questions der aktuellen Runde, in Auswahlreihenfolge (session.round_question_ids)
 const revealedAnswers = new Map(); // question_id -> question_answers row, best-effort Cache
 
 let questionChart = null;
@@ -43,6 +54,15 @@ function showView(name) {
 function showError(message) {
   document.getElementById('error-message').textContent = message;
   showView('error');
+}
+
+function showToast(message) {
+  const toast = document.getElementById('toast');
+  toast.textContent = message;
+  toast.hidden = false;
+  setTimeout(() => {
+    toast.hidden = true;
+  }, 4000);
 }
 
 async function init() {
@@ -86,10 +106,15 @@ async function init() {
     await ensureRevealedAnswer(session.current_question_id);
   }
 
-  showView('dashboard');
+  document.getElementById('round-size-input').value = Math.min(DEFAULT_ROUND_SIZE, questions.length);
+
+  showView('main');
+  initTabs();
   render();
+  wireControls();
   subscribeRealtime();
   setInterval(tickCountdown, 1000);
+  setInterval(autoCloseTick, 1000);
 }
 
 async function ensureRevealedAnswer(questionId) {
@@ -106,7 +131,7 @@ async function ensureRevealedAnswer(questionId) {
 
 function subscribeRealtime() {
   supabaseClient
-    .channel('dashboard-quiz-sessions')
+    .channel('quiz-sessions-changes')
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'quiz_sessions' }, async (payload) => {
       session = payload.new;
       if (isRevealed(session) && session.current_question_id) {
@@ -117,7 +142,7 @@ function subscribeRealtime() {
     .subscribe();
 
   supabaseClient
-    .channel('dashboard-responses')
+    .channel('responses-changes')
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'responses' }, (payload) => {
       responses.push(payload.new);
       render();
@@ -125,7 +150,7 @@ function subscribeRealtime() {
     .subscribe();
 
   supabaseClient
-    .channel('dashboard-participants')
+    .channel('participants-changes')
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'participants' }, (payload) => {
       participants.push(payload.new);
       render();
@@ -133,10 +158,50 @@ function subscribeRealtime() {
     .subscribe();
 }
 
-// --- Rendering ---------------------------------------------------------
+// --- Tabs ----------------------------------------------------------------
+
+function initTabs() {
+  const requested = new URLSearchParams(window.location.search).get('tab');
+  const initialTab = requested === 'presenter' ? 'presenter' : 'dashboard';
+
+  for (const button of document.querySelectorAll('.tab-button')) {
+    button.addEventListener('click', () => switchTab(button.dataset.tab));
+  }
+
+  switchTab(initialTab);
+}
+
+function switchTab(name) {
+  for (const button of document.querySelectorAll('.tab-button')) {
+    button.classList.toggle('is-active', button.dataset.tab === name);
+  }
+  // [hidden] traegt !important (siehe shared/styles.css, Kommentar dort),
+  // gewinnt also immer gegen eine reine Klassen-Regel wie .tab-panel.is-active
+  // { display: flex } -- Sichtbarkeit deshalb ueber .hidden steuern, nicht nur
+  // ueber die Klasse (die bleibt rein fuers Nav-Button-Highlighting).
+  document.getElementById('tab-dashboard').hidden = name !== 'dashboard';
+  document.getElementById('tab-presenter').hidden = name !== 'presenter';
+
+  const url = new URL(window.location.href);
+  url.searchParams.set('tab', name);
+  window.history.replaceState(null, '', url);
+}
+
+// --- Rendering (gemeinsam) -------------------------------------------------
 
 function render() {
-  document.getElementById('session-status').textContent = STATUS_LABEL[session?.status] ?? 'Lobby';
+  roundQuestions = (session?.round_question_ids ?? [])
+    .map((id) => questions.find((q) => q.id === id))
+    .filter(Boolean);
+
+  renderDashboard();
+  renderPresenter();
+}
+
+// --- Rendering: Dashboard-Tab ----------------------------------------------
+
+function renderDashboard() {
+  document.getElementById('session-status').textContent = DASHBOARD_STATUS_LABEL[session?.status] ?? 'Lobby';
   document.getElementById('participant-count').textContent = `${participants.length} angemeldet`;
 
   renderQuestionProgressBar();
@@ -145,14 +210,19 @@ function render() {
   renderProgression();
 }
 
-// Fortschritt ueber das GESAMTE Quiz (wie viele Fragen sind durch), nicht zu
-// verwechseln mit renderQuestionProgress() weiter unten, die die Antwortquote
-// der einen gerade laufenden Frage zeigt.
 function renderQuestionProgressBar() {
-  const { done, total } = computeQuestionProgress({ session, questions });
-  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
-  document.getElementById('question-progress-fill').style.width = `${pct}%`;
-  document.getElementById('question-progress-label').textContent = `${done} von ${total} Fragen`;
+  const roundQuestionIds = session?.round_question_ids ?? [];
+  const { done, total } = computeQuestionProgress({ session, roundQuestionIds });
+  const fill = document.getElementById('question-progress-fill');
+  const label = document.getElementById('question-progress-label');
+  if (total === 0) {
+    fill.style.width = '0%';
+    label.textContent = 'Noch keine Runde gestartet';
+    return;
+  }
+  const pct = Math.round((done / total) * 100);
+  fill.style.width = `${pct}%`;
+  label.textContent = `${done} von ${total} Fragen`;
 }
 
 function currentQuestion() {
@@ -383,13 +453,13 @@ function renderLeaderboardChart(canvasEl, leaderboard, { instance, instanceSette
 }
 
 function renderProgression() {
-  const progression = computePointsProgression({ participants, responses, questions });
+  const progression = computePointsProgression({ participants, responses, roundQuestions });
   const byPoints = [...progression].sort(
     (a, b) => (b.series.at(-1) ?? 0) - (a.series.at(-1) ?? 0)
   );
   const top = byPoints.slice(0, PROGRESSION_TOP_N);
 
-  const hasData = questions.some((q) => responses.some((r) => r.question_id === q.id));
+  const hasData = roundQuestions.some((q) => responses.some((r) => r.question_id === q.id));
   document.getElementById('progression-empty').hidden = hasData;
   document.getElementById('progression-chart-wrap').hidden = !hasData;
 
@@ -401,7 +471,10 @@ function renderProgression() {
 }
 
 function renderProgressionChart(canvasEl, series, { instance, instanceSetter, legend = true }) {
-  const labels = questions.map((q) => `#${q.position}`);
+  // Rundenrelative Nummerierung (#1, #2, ...), nicht die Katalog-position: die
+  // Runde ist eine zufaellige Teilmenge, Katalogpositionen waeren hier luecken-
+  // haft und ohne Aussage ueber die tatsaechliche Reihenfolge in dieser Runde.
+  const labels = roundQuestions.map((_, i) => `#${i + 1}`);
   const datasets = series.map((s, i) => ({
     label: s.participant.display_name,
     data: s.series,
@@ -460,7 +533,8 @@ function gradient(ctx, from, to) {
   return g;
 }
 
-// --- Countdown (nur Anzeige, ausgeloest wird das Schliessen vom Presenter) ---
+// --- Countdown (nur Anzeige im Dashboard-Tab; ausgeloest wird das Schliessen
+// vom Presenter-Tab, siehe autoCloseTick weiter unten) ---
 
 function tickCountdown() {
   const question = currentQuestion();
@@ -480,7 +554,190 @@ function tickCountdown() {
   badge.classList.toggle('hero-timer--urgent', secondsLeft <= 5);
 }
 
-// --- Drilldowns ----------------------------------------------------------
+// --- Rendering: Presenter-Tab ----------------------------------------------
+
+function renderPresenter() {
+  const view = buildPresenterView({ session, questions, responses, participantCount: participants.length });
+
+  document.getElementById('presenter-session-status').textContent = PRESENTER_STATUS_LABEL[view.status] ?? view.status;
+  document.getElementById('presenter-participant-count').textContent = `${view.participantCount} angemeldet`;
+
+  document.getElementById('no-round-hint').hidden = view.hasActiveRound;
+  document.getElementById('question-table-wrap').hidden = !view.hasActiveRound;
+
+  const tbody = document.getElementById('question-rows');
+  tbody.innerHTML = '';
+
+  for (const row of view.rows) {
+    const tr = document.createElement('tr');
+
+    const badge = document.createElement('span');
+    badge.className = `row-badge row-badge--${row.badge}`;
+    badge.textContent = BADGE_LABEL[row.badge];
+
+    const actionButton = document.createElement('button');
+    actionButton.type = 'button';
+    if (row.badge === 'open') {
+      actionButton.textContent = 'Schließen';
+      actionButton.addEventListener('click', () => closeQuestion());
+    } else {
+      actionButton.textContent = 'Öffnen';
+      actionButton.addEventListener('click', () => openQuestion(row.question.id));
+    }
+
+    tr.innerHTML = `
+      <td>${row.question.position}</td>
+      <td>${escapeHtml(row.question.prompt)}</td>
+      <td>${TYPE_LABEL[row.question.question_type] ?? row.question.question_type}</td>
+      <td></td>
+      <td class="muted"${row.badge === 'open' ? ' data-countdown' : ''}></td>
+      <td>${row.responseCount}</td>
+      <td></td>
+    `;
+    tr.children[3].appendChild(badge);
+    tr.children[6].appendChild(actionButton);
+    tbody.appendChild(tr);
+  }
+
+  document.getElementById('finish-button').disabled = !view.canFinish;
+  document.getElementById('start-round-button').disabled = !view.canStartRound;
+  document.getElementById('round-size-input').disabled = !view.canStartRound;
+  document.getElementById('cancel-round-button').disabled = !view.canCancelRound;
+
+  const askedCount = questions.filter((q) => q.times_asked > 0).length;
+  document.getElementById('round-catalog-hint').textContent =
+    `Katalog: ${questions.length} Fragen, davon ${askedCount} schon mindestens einmal gestellt.`;
+  document.getElementById('round-size-input').max = String(questions.length);
+
+  renderCountdownOnly();
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// Laeuft jede Sekunde: schliesst die offene Frage automatisch, wenn ihr Zeitlimit
+// abgelaufen ist oder alle Teilnehmer schon geantwortet haben (siehe shared/quiz-timer.js).
+// Selbstbegrenzend: sobald status != 'open' ist, greift die Regel nicht mehr,
+// kein extra Flag noetig gegen doppeltes Schliessen. Laeuft unabhaengig davon,
+// welcher Tab gerade sichtbar ist, wie zuvor auf der eigenen Presenter-Seite.
+let autoCloseInFlight = false;
+
+function autoCloseTick() {
+  if (autoCloseInFlight) return;
+  const dueForAutoClose = shouldAutoClose({
+    session,
+    questions,
+    responseCount: responses.filter((r) => r.question_id === session?.current_question_id).length,
+    participantCount: participants.length,
+    now: Date.now(),
+  });
+  if (!dueForAutoClose) return;
+  autoCloseInFlight = true;
+  closeQuestion().finally(() => {
+    autoCloseInFlight = false;
+  });
+}
+
+// Zaehlt die Sekundenanzeige der offenen Zeile jede Sekunde runter, ohne die
+// ganze Tabelle neu aufzubauen (renderPresenter() wuerde bei jedem Tick alle
+// Buttons/Listener neu erzeugen, unnoetig fuer eine reine Zahlenanzeige).
+function renderCountdownOnly() {
+  const deadline = computeAutoCloseAt({ session, questions });
+  const el = document.querySelector('#tab-presenter [data-countdown]');
+  if (!el) return;
+  if (deadline === null) {
+    el.textContent = '';
+    return;
+  }
+  const secondsLeft = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+  el.textContent = `${secondsLeft}s`;
+}
+
+function wireControls() {
+  document.getElementById('finish-button').addEventListener('click', () => finishQuiz());
+
+  document.getElementById('start-round-button').addEventListener('click', () => {
+    const size = parseInt(document.getElementById('round-size-input').value, 10);
+    if (!Number.isFinite(size) || size < 1) {
+      showToast('Bitte eine gueltige Rundengroesse eingeben.');
+      return;
+    }
+    startRound(size);
+  });
+
+  document.getElementById('cancel-round-button').addEventListener('click', () => {
+    if (!window.confirm('Aktuelle Runde wirklich abbrechen? Die laufende Frage wird zurueckgesetzt.')) return;
+    cancelRound();
+  });
+}
+
+// quiz_sessions ist fuer direkte Schreibzugriffe gesperrt (siehe Migration
+// presenter_control_rpc): jede Aenderung laeuft ueber diese RPC mit einem
+// Presenter-Passwort, sonst koennte jeder Teilnehmer ueber denselben
+// Anonymous-Auth-Zugang das Quiz kapern. Das Passwort wird einmal pro
+// Browser-Sitzung abgefragt und in sessionStorage gecacht, nicht in
+// localStorage, damit es nicht ueber Neustarts hinweg auf dem Geraet bleibt.
+function getPresenterSecret() {
+  let secret = sessionStorage.getItem('presenterSecret');
+  if (!secret) {
+    secret = window.prompt('Presenter-Passwort:') ?? '';
+    sessionStorage.setItem('presenterSecret', secret);
+  }
+  return secret;
+}
+
+// Gibt true bei Erfolg zurueck, false bei einem Fehler (Passwort oder Validierung).
+async function callPresenterControl(action, targetQuestionId, roundSize = null) {
+  const { error } = await supabaseClient.rpc('presenter_control', {
+    action,
+    target_question_id: targetQuestionId,
+    presenter_secret: getPresenterSecret(),
+    round_size: roundSize,
+  });
+  if (error) {
+    // Nur bei falschem Passwort (errcode 28000) den Cache loeschen, damit beim
+    // naechsten Versuch neu abgefragt wird. Andere Fehler (z.B. eine ungueltige
+    // Rundengroesse, oder "Frage nicht Teil der Runde") sind Validierungsfehler,
+    // das Passwort selbst war richtig und bleibt gecacht.
+    if (error.code === '28000') {
+      sessionStorage.removeItem('presenterSecret');
+    }
+    showToast(error.message);
+    return false;
+  }
+  return true;
+}
+
+async function openQuestion(questionId) {
+  const ok = await callPresenterControl('open', questionId);
+  if (!ok) return;
+  // Optimistisches Update statt einer eigenen Realtime-Subscription auf questions:
+  // times_asked wird serverseitig in derselben RPC hochgezaehlt (siehe Migration
+  // quiz_rounds), und Presenter ist ohnehin die einzige schreibende Instanz.
+  const question = questions.find((q) => q.id === questionId);
+  if (question) question.times_asked = (question.times_asked ?? 0) + 1;
+}
+
+async function closeQuestion() {
+  await callPresenterControl('close', null);
+}
+
+async function finishQuiz() {
+  await callPresenterControl('finish', null);
+}
+
+async function startRound(roundSize) {
+  await callPresenterControl('start_round', null, roundSize);
+}
+
+async function cancelRound() {
+  await callPresenterControl('cancel_round', null);
+}
+
+// --- Drilldowns (Dashboard-Tab) --------------------------------------------
 
 function openModal(title, bodyBuilder) {
   document.getElementById('drilldown-title').textContent = title;
@@ -515,18 +772,17 @@ function openLeaderboardDrilldown(leaderboard) {
 
 function openParticipantDrilldown(participant) {
   openModal(participant.display_name, (body) => {
-    const ordered = [...questions].sort((a, b) => a.position - b.position);
     const table = document.createElement('table');
     table.className = 'drilldown-table';
     table.innerHTML = '<thead><tr><th>#</th><th>Frage</th><th>Ergebnis</th><th>Punkte</th><th>Zeit</th></tr></thead>';
     const tbody = document.createElement('tbody');
-    for (const question of ordered) {
+    roundQuestions.forEach((question, i) => {
       const response = responses.find((r) => r.participant_id === participant.id && r.question_id === question.id);
       const tr = document.createElement('tr');
       const resultLabel = !response ? '–' : response.is_correct ? '✓ richtig' : '✗ falsch';
       const latency = response?.latency_ms != null ? `${(response.latency_ms / 1000).toFixed(1)}s` : '–';
       tr.innerHTML = `
-        <td>${question.position}</td>
+        <td>${i + 1}</td>
         <td></td>
         <td class="${response?.is_correct ? 'is-correct' : response ? 'is-wrong' : ''}">${resultLabel}</td>
         <td>${response?.points_awarded ?? '–'}</td>
@@ -534,7 +790,7 @@ function openParticipantDrilldown(participant) {
       `;
       tr.children[1].textContent = question.prompt;
       tbody.appendChild(tr);
-    }
+    });
     table.appendChild(tbody);
     body.appendChild(table);
   });
@@ -553,12 +809,6 @@ function openProgressionDrilldown(allSeries) {
       legend: allSeries.length <= 12,
     });
   });
-}
-
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
 }
 
 document.getElementById('drilldown-close').addEventListener('click', closeModal);

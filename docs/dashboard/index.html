@@ -6,6 +6,7 @@
   <title>Live-Quiz — Dashboard</title>
   <link rel="stylesheet" href="../shared/styles.css">
   <link rel="stylesheet" href="./dashboard.css">
+  <link rel="stylesheet" href="./presenter.css">
 </head>
 <body class="presenter-body">
   <main id="app" class="dashboard-app">
@@ -20,80 +21,127 @@
       <p class="muted">Fragen und Loesungen werden per Supabase SQL-Editor eingetragen.</p>
     </section>
 
-    <section id="view-dashboard" class="view dashboard-view" hidden>
-      <header class="dashboard-header">
-        <div class="dashboard-title">
-          <h1>Live-Quiz</h1>
-          <p id="session-status" class="status-pill"></p>
-        </div>
-        <p id="participant-count" class="dashboard-participant-count"></p>
-      </header>
+    <section id="view-main" class="view" hidden>
+      <nav class="tab-nav">
+        <button type="button" class="tab-button" data-tab="dashboard">Dashboard</button>
+        <button type="button" class="tab-button" data-tab="presenter">Presenter</button>
+      </nav>
 
-      <div class="question-progress">
-        <div class="progress-track progress-track--question">
-          <div id="question-progress-fill" class="progress-fill progress-fill--question"></div>
+      <div id="tab-dashboard" class="tab-panel dashboard-view">
+        <header class="dashboard-header">
+          <div class="dashboard-title">
+            <h1>Live-Quiz</h1>
+            <p id="session-status" class="status-pill"></p>
+          </div>
+          <p id="participant-count" class="dashboard-participant-count"></p>
+        </header>
+
+        <div class="question-progress">
+          <div class="progress-track progress-track--question">
+            <div id="question-progress-fill" class="progress-fill progress-fill--question"></div>
+          </div>
+          <p id="question-progress-label" class="question-progress-label"></p>
         </div>
-        <p id="question-progress-label" class="question-progress-label"></p>
+
+        <div class="dashboard-grid">
+          <section class="panel hero-panel">
+            <div class="hero-glow" aria-hidden="true"></div>
+            <div id="hero-empty" class="hero-state">
+              <p class="hero-empty-label">Bereit fürs Quiz</p>
+              <p class="muted">Warte auf die erste Frage...</p>
+            </div>
+
+            <div id="hero-question" class="hero-state" hidden>
+              <div class="hero-question-head">
+                <span id="hero-type-badge" class="type-badge"></span>
+                <span id="hero-timer" class="hero-timer" hidden></span>
+              </div>
+              <h2 id="hero-prompt" class="hero-prompt"></h2>
+
+              <div id="hero-progress" class="hero-progress" hidden>
+                <div class="progress-track">
+                  <div id="hero-progress-fill" class="progress-fill"></div>
+                </div>
+                <p id="hero-progress-label" class="muted"></p>
+              </div>
+
+              <div id="hero-result" class="hero-result" hidden>
+                <div class="hero-result-chart">
+                  <canvas id="question-chart" height="220"></canvas>
+                </div>
+                <div id="hero-correct-callout" class="hero-correct-callout"></div>
+                <div id="hero-quick-stats" class="hero-quick-stats"></div>
+              </div>
+            </div>
+
+            <div id="hero-finished" class="hero-state" hidden>
+              <p class="hero-empty-label">Quiz beendet</p>
+              <div id="closing-stats" class="closing-stats"></div>
+            </div>
+          </section>
+
+          <section class="panel leaderboard-panel">
+            <div class="panel-head">
+              <h2>Leaderboard</h2>
+              <button id="leaderboard-drilldown" type="button" class="button-link">Alle anzeigen</button>
+            </div>
+            <p id="leaderboard-empty" class="muted" hidden>Noch keine Punkte vergeben.</p>
+            <div id="leaderboard-chart-wrap" class="leaderboard-chart-wrap">
+              <canvas id="leaderboard-chart"></canvas>
+            </div>
+          </section>
+
+          <section class="panel progression-panel">
+            <div class="panel-head">
+              <h2>Punkte-Verlauf</h2>
+              <button id="progression-drilldown" type="button" class="button-link">Alle anzeigen</button>
+            </div>
+            <p id="progression-empty" class="muted" hidden>Noch keine Frage abgeschlossen.</p>
+            <div id="progression-chart-wrap" class="progression-chart-wrap">
+              <canvas id="progression-chart"></canvas>
+            </div>
+          </section>
+        </div>
       </div>
 
-      <div class="dashboard-grid">
-        <section class="panel hero-panel">
-          <div class="hero-glow" aria-hidden="true"></div>
-          <div id="hero-empty" class="hero-state">
-            <p class="hero-empty-label">Bereit fürs Quiz</p>
-            <p class="muted">Warte auf die erste Frage...</p>
-          </div>
+      <div id="tab-presenter" class="tab-panel presenter-view" hidden>
+        <header class="presenter-header">
+          <p id="presenter-session-status" class="status-badge"></p>
+          <p id="presenter-participant-count" class="muted"></p>
+        </header>
 
-          <div id="hero-question" class="hero-state" hidden>
-            <div class="hero-question-head">
-              <span id="hero-type-badge" class="type-badge"></span>
-              <span id="hero-timer" class="hero-timer" hidden></span>
-            </div>
-            <h2 id="hero-prompt" class="hero-prompt"></h2>
+        <div class="round-panel">
+          <div class="round-panel-row">
+            <label for="round-size-input">Fragen in dieser Runde</label>
+            <input id="round-size-input" type="number" min="1" step="1" inputmode="numeric">
+            <button id="start-round-button" type="button">Runde starten</button>
+            <button id="cancel-round-button" type="button" class="button-secondary">Abbrechen</button>
+          </div>
+          <p id="round-catalog-hint" class="muted"></p>
+        </div>
 
-            <div id="hero-progress" class="hero-progress" hidden>
-              <div class="progress-track">
-                <div id="hero-progress-fill" class="progress-fill"></div>
-              </div>
-              <p id="hero-progress-label" class="muted"></p>
-            </div>
+        <p id="no-round-hint" class="muted" hidden>Noch keine Runde gestartet. Rundengroesse eintragen und "Runde starten" klicken.</p>
 
-            <div id="hero-result" class="hero-result" hidden>
-              <div class="hero-result-chart">
-                <canvas id="question-chart" height="220"></canvas>
-              </div>
-              <div id="hero-correct-callout" class="hero-correct-callout"></div>
-              <div id="hero-quick-stats" class="hero-quick-stats"></div>
-            </div>
-          </div>
+        <div id="question-table-wrap" class="question-table-wrap">
+          <table class="question-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Frage</th>
+                <th>Typ</th>
+                <th>Status</th>
+                <th>Zeit</th>
+                <th>Antworten</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="question-rows"></tbody>
+          </table>
+        </div>
 
-          <div id="hero-finished" class="hero-state" hidden>
-            <p class="hero-empty-label">Quiz beendet</p>
-            <div id="closing-stats" class="closing-stats"></div>
-          </div>
-        </section>
-
-        <section class="panel leaderboard-panel">
-          <div class="panel-head">
-            <h2>Leaderboard</h2>
-            <button id="leaderboard-drilldown" type="button" class="button-link">Alle anzeigen</button>
-          </div>
-          <p id="leaderboard-empty" class="muted" hidden>Noch keine Punkte vergeben.</p>
-          <div id="leaderboard-chart-wrap" class="leaderboard-chart-wrap">
-            <canvas id="leaderboard-chart"></canvas>
-          </div>
-        </section>
-
-        <section class="panel progression-panel">
-          <div class="panel-head">
-            <h2>Punkte-Verlauf</h2>
-            <button id="progression-drilldown" type="button" class="button-link">Alle anzeigen</button>
-          </div>
-          <p id="progression-empty" class="muted" hidden>Noch keine Frage abgeschlossen.</p>
-          <div id="progression-chart-wrap" class="progression-chart-wrap">
-            <canvas id="progression-chart"></canvas>
-          </div>
-        </section>
+        <footer class="presenter-footer">
+          <button id="finish-button" type="button" class="button-secondary">Quiz beenden</button>
+        </footer>
       </div>
     </section>
 

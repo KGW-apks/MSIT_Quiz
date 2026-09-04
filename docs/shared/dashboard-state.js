@@ -81,21 +81,25 @@ export function aggregateEstimation({ question, responses, participants, correct
   };
 }
 
-// Wie viele Fragen sind bereits abgeschlossen (durch), wie viele stehen noch aus.
-// "Durch" heisst: geschlossen, oder eine frueher positionierte Frage als die
-// aktuelle. Die laufende, noch offene Frage zaehlt bewusst noch nicht als durch.
-export function computeQuestionProgress({ session, questions }) {
-  const total = questions.length;
+// Wie viele Fragen der aktuellen RUNDE sind bereits abgeschlossen (durch), wie
+// viele stehen noch aus. "Durch" heisst: geschlossen, oder eine Frage, die in
+// der Runden-Auswahlreihenfolge vor der aktuellen liegt. roundQuestionIds ist
+// session.round_question_ids (Reihenfolge = Auswahlreihenfolge aus start_round,
+// dieselbe Reihenfolge, in der der Presenter die Zeilen sieht). Katalog-position
+// ist hier bewusst NICHT die Grundlage: die Runde ist eine zufaellige Teilmenge
+// des wachsenden Katalogs, Positionen darin sind nicht fortlaufend/aussagekraeftig.
+export function computeQuestionProgress({ session, roundQuestionIds }) {
+  const ids = roundQuestionIds ?? [];
+  const total = ids.length;
   if (!session || session.status === 'lobby' || !session.current_question_id) {
     return { done: 0, total };
   }
   if (session.status === 'finished') {
     return { done: total, total };
   }
-  const current = questions.find((q) => q.id === session.current_question_id);
-  if (!current) return { done: 0, total };
-  const before = questions.filter((q) => q.position < current.position).length;
-  return { done: session.status === 'closed' ? before + 1 : before, total };
+  const currentIndex = ids.indexOf(session.current_question_id);
+  if (currentIndex === -1) return { done: 0, total };
+  return { done: session.status === 'closed' ? currentIndex + 1 : currentIndex, total };
 }
 
 export function computeLeaderboard({ participants, responses }) {
@@ -113,10 +117,13 @@ export function computeLeaderboard({ participants, responses }) {
     .sort((a, b) => b.totalPoints - a.totalPoints);
 }
 
-// Eine Punkte-Verlaufs-Reihe pro Teilnehmer, kumuliert ueber alle Fragen in
-// Positions-Reihenfolge (fuers Liniendiagramm).
-export function computePointsProgression({ participants, responses, questions }) {
-  const ordered = [...questions].sort((a, b) => a.position - b.position);
+// Eine Punkte-Verlaufs-Reihe pro Teilnehmer, kumuliert ueber die Fragen der
+// aktuellen Runde in ihrer Auswahlreihenfolge (fuers Liniendiagramm).
+// roundQuestions ist bereits in dieser Reihenfolge sortiert (siehe Aufrufer),
+// keine Katalog-position-Sortierung mehr: die Runde ist eine zufaellige
+// Teilmenge, position waere hier nicht die richtige Achse.
+export function computePointsProgression({ participants, responses, roundQuestions }) {
+  const ordered = roundQuestions ?? [];
   return participants.map((participant) => {
     let running = 0;
     const series = ordered.map((question) => {
