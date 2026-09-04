@@ -30,7 +30,13 @@
 
     <section id="view-question" class="view" hidden>
       <p id="question-prompt-small" class="prompt-small"></p>
-      <div id="question-options"></div>
+      <div id="timer-ring" class="timer-ring">
+        <svg class="timer-ring-svg" aria-hidden="true">
+          <rect class="timer-ring-rect" />
+        </svg>
+        <div id="question-options"></div>
+      </div>
+      <p id="answer-saved-hint" class="answer-saved-hint muted" hidden>Antwort gespeichert, du kannst sie noch ändern.</p>
     </section>
 
     <section id="view-waiting" class="view" hidden>

@@ -11,7 +11,7 @@
 
 import { supabaseClient } from '../shared/supabase-client.js';
 import { computeAutoCloseAt, shouldAutoClose } from '../shared/quiz-timer.js';
-import { buildPresenterView } from '../shared/presenter-state.js';
+import { buildPresenterView, computeNextQuestionId } from '../shared/presenter-state.js';
 import { installGlobalErrorHandlers, logError } from '../shared/error-log.js';
 import {
   isRevealed,
@@ -128,6 +128,7 @@ async function init() {
   wireControls();
   subscribeRealtime();
   setInterval(tickCountdown, 1000);
+  setInterval(renderCountdownOnly, 1000);
   setInterval(autoCloseTick, 1000);
 }
 
@@ -366,9 +367,30 @@ function renderQuestionResult(question) {
     total > 0 ? `${correctCount} von ${total} richtig` : 'Noch keine Antworten';
 }
 
+// Multiple-Choice-Optionen sind oft ganze Saetze (siehe Fragenkatalog), Chart.js
+// rotiert/ueberlappt lange einzeilige X-Achsen-Labels dann unlesbar (Bug
+// 2026-09-04, live beim Testen gefunden). Fix: Labels als Zeilen-Array statt
+// einzelner String, Chart.js rendert ein Array automatisch mehrzeilig.
+function wrapChartLabel(label, maxCharsPerLine = 18) {
+  const words = String(label).split(' ');
+  const lines = [];
+  let current = '';
+  for (const word of words) {
+    const candidate = current ? `${current} ${word}` : word;
+    if (candidate.length > maxCharsPerLine && current) {
+      lines.push(current);
+      current = word;
+    } else {
+      current = candidate;
+    }
+  }
+  if (current) lines.push(current);
+  return lines;
+}
+
 function renderQuestionChart(bars) {
   const ctx = document.getElementById('question-chart').getContext('2d');
-  const labels = bars.map((b) => b.label);
+  const labels = bars.map((b) => wrapChartLabel(b.label));
   const data = bars.map((b) => b.count);
   const colors = bars.map((b) => (b.isCorrect ? gradient(ctx, '#4ade80', '#16a34a') : gradient(ctx, '#60a5fa', '#1d4ed8')));
   const voters = bars.map((b) => b.voters ?? []);
@@ -583,7 +605,10 @@ function chartBaseOptions({ showLegend, tooltipCallbacks = {} }) {
       },
     },
     scales: {
-      x: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(148,163,184,0.08)' } },
+      // maxRotation: 0 verhindert, dass Chart.js die (dank wrapChartLabel schon
+      // kurzen) Zeilen zusaetzlich noch schraeg dreht -- genau das hatte die
+      // langen Multiple-Choice-Optionen unlesbar ueberlappen lassen.
+      x: { ticks: { color: '#94a3b8', maxRotation: 0, autoSkip: false }, grid: { color: 'rgba(148,163,184,0.08)' } },
       y: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(148,163,184,0.08)' }, beginAtZero: true },
     },
   };
@@ -626,40 +651,19 @@ function renderPresenter() {
   document.getElementById('presenter-participant-count').textContent = `${view.participantCount} angemeldet`;
 
   document.getElementById('no-round-hint').hidden = view.hasActiveRound;
-  document.getElementById('question-table-wrap').hidden = !view.hasActiveRound;
+  document.getElementById('question-picker-wrap').hidden = !view.hasActiveRound;
 
-  const tbody = document.getElementById('question-rows');
-  tbody.innerHTML = '';
+  renderQuestionPicker(view.options);
 
-  for (const row of view.rows) {
-    const tr = document.createElement('tr');
-
-    const badge = document.createElement('span');
-    badge.className = `row-badge row-badge--${row.badge}`;
-    badge.textContent = BADGE_LABEL[row.badge];
-
-    const actionButton = document.createElement('button');
-    actionButton.type = 'button';
-    if (row.badge === 'open') {
-      actionButton.textContent = 'Schließen';
-      actionButton.addEventListener('click', () => closeQuestion());
-    } else {
-      actionButton.textContent = 'Öffnen';
-      actionButton.addEventListener('click', () => openQuestion(row.question.id));
-    }
-
-    tr.innerHTML = `
-      <td>${row.question.position}</td>
-      <td>${escapeHtml(row.question.prompt)}</td>
-      <td>${TYPE_LABEL[row.question.question_type] ?? row.question.question_type}</td>
-      <td></td>
-      <td class="muted"${row.badge === 'open' ? ' data-countdown' : ''}></td>
-      <td>${row.responseCount}</td>
-      <td></td>
-    `;
-    tr.children[3].appendChild(badge);
-    tr.children[6].appendChild(actionButton);
-    tbody.appendChild(tr);
+  const panel = document.getElementById('current-question-panel');
+  panel.hidden = !view.current;
+  if (view.current) {
+    const badge = document.getElementById('current-question-badge');
+    badge.className = `row-badge row-badge--${view.current.badge}`;
+    badge.textContent = BADGE_LABEL[view.current.badge];
+    document.getElementById('current-question-prompt').textContent = view.current.question?.prompt ?? '';
+    document.getElementById('current-question-responses').textContent = `${view.current.responseCount} Antworten`;
+    document.getElementById('close-question-button').disabled = !view.canClose;
   }
 
   document.getElementById('finish-button').disabled = !view.canFinish;
@@ -673,6 +677,38 @@ function renderPresenter() {
   document.getElementById('round-size-input').max = String(questions.length);
 
   renderCountdownOnly();
+}
+
+// Dropdown zeigt bewusst nur "Frage N" (+ Status), nie den Prompt-Text: Mit-
+// schueler sehen per Screenshare mit, wie die Runde gesteuert wird, kommende
+// Fragen sollen vorher nicht lesbar sein (Knuts Vorgabe 2026-09-04). Der
+// volle Text erscheint erst im current-question-panel, sobald eine Frage
+// tatsaechlich offen ist -- das Publikum sieht sie dann ohnehin zeitgleich
+// im Dashboard-Tab.
+function renderQuestionPicker(options) {
+  const select = document.getElementById('question-picker');
+  const previousValue = select.value;
+  select.innerHTML = '';
+
+  for (const option of options) {
+    const el = document.createElement('option');
+    el.value = option.id;
+    el.textContent = option.isCurrent
+      ? `${option.label} (aktuell)`
+      : option.alreadyAsked
+        ? `${option.label} (gestellt)`
+        : option.label;
+    select.appendChild(el);
+  }
+
+  // Auswahl erhalten, wenn die Option noch existiert (z.B. beim Umschalten
+  // zwischen Tabs), sonst auf die aktuelle Frage springen, damit "Oeffnen"
+  // nie versehentlich eine veraltete id trifft.
+  if (options.some((o) => o.id === previousValue)) {
+    select.value = previousValue;
+  } else {
+    select.value = options.find((o) => o.isCurrent)?.id ?? options[0]?.id ?? '';
+  }
 }
 
 function escapeHtml(text) {
@@ -704,23 +740,29 @@ function autoCloseTick() {
   });
 }
 
-// Zaehlt die Sekundenanzeige der offenen Zeile jede Sekunde runter, ohne die
-// ganze Tabelle neu aufzubauen (renderPresenter() wuerde bei jedem Tick alle
-// Buttons/Listener neu erzeugen, unnoetig fuer eine reine Zahlenanzeige).
+// Zaehlt die Presenter-Timer-Badge jede Sekunde runter, ohne renderPresenter()
+// komplett neu aufzurufen (das wuerde Dropdown/Listener unnoetig neu aufbauen).
+// Gleiche "rot in den letzten 5s"-Regel wie beim Dashboard-Hero-Timer (tickCountdown).
 function renderCountdownOnly() {
   const deadline = computeAutoCloseAt({ session, questions });
-  const el = document.querySelector('#tab-presenter [data-countdown]');
-  if (!el) return;
+  const el = document.getElementById('current-question-timer');
   if (deadline === null) {
-    el.textContent = '';
+    el.hidden = true;
     return;
   }
   const secondsLeft = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+  el.hidden = false;
   el.textContent = `${secondsLeft}s`;
+  el.classList.toggle('hero-timer--urgent', secondsLeft <= 5);
 }
 
 function wireControls() {
   document.getElementById('finish-button').addEventListener('click', () => finishQuiz());
+  document.getElementById('close-question-button').addEventListener('click', () => closeQuestion());
+  document.getElementById('open-question-button').addEventListener('click', () => {
+    const id = document.getElementById('question-picker').value;
+    if (id) openQuestion(id);
+  });
 
   document.getElementById('start-round-button').addEventListener('click', () => {
     const size = parseInt(document.getElementById('round-size-input').value, 10);
@@ -778,7 +820,46 @@ async function callPresenterControl(action, targetQuestionId, roundSize = null) 
   return true;
 }
 
+// --- Auto-Advance ------------------------------------------------------
+// Nach dem Schliessen einer Frage (per Timer oder manuell) oeffnet sich die
+// naechste Frage der Runde von selbst, nach einer kurzen Anzeigezeit fuers
+// Reveal (Knuts Vorgabe: Timer-getriebenes Rundenspiel ohne Klick pro Frage).
+// REVEAL_DWELL_MS ist eine eigene Setzung (gewaehlt, kein Sachzwang) -- lang
+// genug, um die aufgedeckte Verteilung/Loesung im Dashboard kurz lesen zu
+// koennen, ohne das Tempo der Runde zu sehr zu bremsen.
+const REVEAL_DWELL_MS = 6000;
+let advanceTimer = null;
+
+function clearScheduledAdvance() {
+  if (advanceTimer) {
+    clearTimeout(advanceTimer);
+    advanceTimer = null;
+  }
+}
+
+function scheduleAutoAdvance() {
+  clearScheduledAdvance();
+  const nextId = computeNextQuestionId({ session });
+  const closedQuestionId = session?.current_question_id;
+  advanceTimer = setTimeout(() => {
+    advanceTimer = null;
+    // Guard gegen zwischenzeitliches manuelles Eingreifen (Runde abgebrochen,
+    // andere Frage geoeffnet, ...): nur weiterschalten, wenn der Zustand seit
+    // dem Schliessen unveraendert ist.
+    if (session?.status !== 'closed' || session?.current_question_id !== closedQuestionId) return;
+    // Letzte Frage der Runde (kein nextId mehr): automatisch beenden statt
+    // auf den manuellen "Quiz beenden"-Klick zu warten, damit Presenter und
+    // Teilnehmer von selbst auf dem Abschlussbildschirm landen.
+    if (nextId) {
+      openQuestion(nextId);
+    } else {
+      finishQuiz();
+    }
+  }, REVEAL_DWELL_MS);
+}
+
 async function openQuestion(questionId) {
+  clearScheduledAdvance();
   const ok = await callPresenterControl('open', questionId);
   if (!ok) return;
   // Optimistisches Update statt einer eigenen Realtime-Subscription auf questions:
@@ -789,18 +870,22 @@ async function openQuestion(questionId) {
 }
 
 async function closeQuestion() {
-  await callPresenterControl('close', null);
+  const ok = await callPresenterControl('close', null);
+  if (ok) scheduleAutoAdvance();
 }
 
 async function finishQuiz() {
+  clearScheduledAdvance();
   await callPresenterControl('finish', null);
 }
 
 async function startRound(roundSize) {
+  clearScheduledAdvance();
   await callPresenterControl('start_round', null, roundSize);
 }
 
 async function cancelRound() {
+  clearScheduledAdvance();
   await callPresenterControl('cancel_round', null);
 }
 

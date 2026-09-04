@@ -23,19 +23,20 @@ test('finished: status finished gewinnt unabhaengig vom Rest', () => {
   );
 });
 
-test('open ohne Antwort -> question view', () => {
+test('open ohne Antwort -> question view, myResponse null', () => {
   const q = { id: 'q1', prompt: 'Test?' };
   assert.deepEqual(
     deriveViewState({ status: 'open', currentQuestion: q, myResponse: null }),
-    { view: 'question', question: q }
+    { view: 'question', question: q, myResponse: null }
   );
 });
 
-test('open mit Antwort -> waiting view', () => {
+test('open mit Antwort -> weiterhin question view (Antwort noch aenderbar), myResponse wird mitgegeben', () => {
   const q = { id: 'q1' };
+  const response = { id: 'r1', selected_option: 'A' };
   assert.deepEqual(
-    deriveViewState({ status: 'open', currentQuestion: q, myResponse: { id: 'r1' } }),
-    { view: 'waiting', question: q }
+    deriveViewState({ status: 'open', currentQuestion: q, myResponse: response }),
+    { view: 'question', question: q, myResponse: response }
   );
 });
 

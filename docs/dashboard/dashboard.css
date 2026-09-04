@@ -414,7 +414,8 @@
   max-width: 640px;
   width: 90%;
   max-height: 80vh;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
   animation: db-modal-in 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
@@ -430,6 +431,14 @@
   margin-bottom: 18px;
   padding-bottom: 14px;
   border-bottom: 1px solid var(--db-border-soft);
+  flex: none;
+}
+
+/* Scrollt bei langen Tabellen/Charts allein, damit die Kopfzeile samt X-Button
+   nie mit dem Scrollbalken kollidiert (Bug 2026-09-04: X sass direkt neben dem
+   Scrollbalken, wenn .drilldown-modal komplett scrollte statt nur der Inhalt). */
+.drilldown-body {
+  overflow-y: auto;
 }
 
 .drilldown-modal-head h2 {

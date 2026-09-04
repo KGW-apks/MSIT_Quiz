@@ -131,21 +131,22 @@
 
         <p id="no-round-hint" class="muted" hidden>Noch keine Runde gestartet. Rundengroesse eintragen und "Runde starten" klicken.</p>
 
-        <div id="question-table-wrap" class="question-table-wrap">
-          <table class="question-table">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Frage</th>
-                <th>Typ</th>
-                <th>Status</th>
-                <th>Zeit</th>
-                <th>Antworten</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody id="question-rows"></tbody>
-          </table>
+        <div id="question-picker-wrap" class="question-picker-wrap">
+          <label for="question-picker">Frage wählen</label>
+          <select id="question-picker"></select>
+          <button id="open-question-button" type="button">Öffnen</button>
+        </div>
+
+        <div id="current-question-panel" class="current-question-panel" hidden>
+          <div class="current-question-head">
+            <span id="current-question-badge" class="row-badge"></span>
+            <span id="current-question-timer" class="hero-timer" hidden></span>
+          </div>
+          <p id="current-question-prompt" class="current-question-prompt"></p>
+          <div class="current-question-foot">
+            <p id="current-question-responses" class="muted"></p>
+            <button id="close-question-button" type="button">Schließen</button>
+          </div>
         </div>
 
         <footer class="presenter-footer">

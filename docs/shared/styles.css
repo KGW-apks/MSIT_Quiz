@@ -130,6 +130,47 @@ button:disabled {
   border-color: var(--accent);
 }
 
+/* Persistente Markierung der zuletzt gespeicherten Auswahl (nicht nur beim
+   Druecken sichtbar wie :active), damit sichtbar bleibt, was aktuell gilt,
+   waehrend die Antwort noch geaendert werden darf. */
+.option-button--selected {
+  border-color: var(--accent);
+  background: rgba(34, 197, 94, 0.14);
+}
+
+.answer-saved-hint {
+  font-size: 0.85rem;
+  margin-top: 10px;
+}
+
+/* Umrandung um die Antwortmoeglichkeiten, die sich waehrend der Fragenzeit
+   schliesst (SVG-Rahmen, stroke-dashoffset animiert von "leer" auf "voll
+   gezeichnet"), gesteuert per Web Animations API in app.js (startTimerRing).
+   Rein dekorativ, deshalb pointer-events: none und aria-hidden auf dem SVG. */
+.timer-ring {
+  position: relative;
+}
+
+.timer-ring-svg {
+  position: absolute;
+  inset: -8px;
+  width: calc(100% + 16px);
+  height: calc(100% + 16px);
+  pointer-events: none;
+  overflow: visible;
+}
+
+.timer-ring-rect {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.timer-ring--inactive .timer-ring-rect {
+  display: none;
+}
+
 .toast {
   position: fixed;
   left: 16px;

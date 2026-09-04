@@ -4,6 +4,7 @@
 
 import { supabaseClient } from '../shared/supabase-client.js';
 import { deriveViewState, parseGuessValue } from '../shared/quiz-state.js';
+import { computeAutoCloseAt } from '../shared/quiz-timer.js';
 import { installGlobalErrorHandlers, logError } from '../shared/error-log.js';
 
 // error_logs verlangt eine authentifizierte Session (RLS): ein Fehler VOR erfolgreichem
@@ -15,6 +16,7 @@ installGlobalErrorHandlers('participant');
 const VIEWS = ['loading', 'register', 'lobby', 'question', 'waiting', 'missed', 'finished', 'error'];
 
 let me = null; // { id, display_name }
+let ringQuestionId = null; // welche Frage der Timer-Ring zuletzt gestartet hat, verhindert Neustart bei jedem Resubmit
 
 function showView(name) {
   for (const view of VIEWS) {
@@ -146,14 +148,29 @@ async function renderForSession(quizSession) {
   const state = deriveViewState({ status: quizSession.status, currentQuestion, myResponse });
 
   if (state.view === 'question') {
-    renderQuestion(state.question);
+    renderQuestion(state.question, state.myResponse);
+    // showView() MUSS vor startTimerRing() laufen: der Ring liest die reale
+    // Groesse von #timer-ring per getBoundingClientRect(), die ist 0x0, solange
+    // die Section noch [hidden] ist (Bug 2026-09-04, per Browser-Test gefunden).
+    showView(state.view);
+    // Ring nur bei einer tatsaechlich NEUEN Frage (neu)starten, nicht bei jedem
+    // Resubmit-Re-Render derselben Frage (siehe handleOptionClick/submitResponse
+    // oben, die rufen renderForSession nicht erneut auf, genau deshalb).
+    if (ringQuestionId !== state.question.id) {
+      ringQuestionId = state.question.id;
+      const deadline = computeAutoCloseAt({ session: quizSession, questions: [state.question] });
+      startTimerRing(deadline);
+    }
+    return;
   }
 
+  ringQuestionId = null;
   showView(state.view);
 }
 
-function renderQuestion(question) {
+function renderQuestion(question, myResponse) {
   document.getElementById('question-prompt-small').textContent = question.prompt;
+  document.getElementById('answer-saved-hint').hidden = true;
   const container = document.getElementById('question-options');
   container.innerHTML = '';
 
@@ -162,12 +179,9 @@ function renderQuestion(question) {
     for (const option of question.options) {
       const button = document.createElement('button');
       button.className = 'option-button';
+      button.classList.toggle('option-button--selected', myResponse?.selected_option === option);
       button.textContent = option;
-      button.addEventListener('click', async () => {
-        buttons.forEach((b) => (b.disabled = true));
-        const ok = await submitResponse(question.id, { selected_option: option });
-        if (!ok) buttons.forEach((b) => (b.disabled = false));
-      });
+      button.addEventListener('click', () => handleOptionClick(question.id, option, buttons, button));
       buttons.push(button);
       container.appendChild(button);
     }
@@ -175,9 +189,10 @@ function renderQuestion(question) {
   }
 
   const form = document.createElement('form');
+  const currentGuess = myResponse?.guess_value ?? '';
   form.innerHTML = `
-    <input id="guess-input" type="text" inputmode="decimal" placeholder="Deine Schaetzung" required>
-    <button type="submit">Absenden</button>
+    <input id="guess-input" type="text" inputmode="decimal" placeholder="Deine Schaetzung" value="${currentGuess}" required>
+    <button type="submit">${myResponse ? 'Aendern' : 'Absenden'}</button>
   `;
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -190,17 +205,80 @@ function renderQuestion(question) {
     const submitButton = form.querySelector('button');
     submitButton.disabled = true;
     const ok = await submitResponse(question.id, { guess_value: value });
-    if (!ok) submitButton.disabled = false;
+    submitButton.disabled = false;
+    if (ok) {
+      submitButton.textContent = 'Aendern';
+      showSavedHint();
+    }
   });
   container.appendChild(form);
 }
 
+// Buttons bleiben klickbar (anders als vorher): solange die Frage offen ist,
+// darf man sich umentscheiden. Ein Klick auf die bereits gewaehlte Option
+// sendet sie harmlos erneut (upsert ist idempotent).
+async function handleOptionClick(questionId, option, allButtons, clickedButton) {
+  allButtons.forEach((b) => (b.disabled = true));
+  const ok = await submitResponse(questionId, { selected_option: option });
+  allButtons.forEach((b) => (b.disabled = false));
+  if (ok) {
+    allButtons.forEach((b) => b.classList.toggle('option-button--selected', b === clickedButton));
+    showSavedHint();
+  }
+}
+
+function showSavedHint() {
+  const hint = document.getElementById('answer-saved-hint');
+  hint.hidden = false;
+}
+
+// SVG-Rahmen um #question-options, der sich ueber die verbleibende Zeit
+// schliesst (stroke-dashoffset von "leer" auf "voll gezeichnet"). Nutzt die
+// Web Animations API statt CSS-@keyframes, weil Dasharray/-offset von der
+// tatsaechlichen Containergroesse abhaengen, die erst zur Laufzeit feststeht.
+function startTimerRing(deadline) {
+  const wrap = document.getElementById('timer-ring');
+  const svg = wrap.querySelector('.timer-ring-svg');
+  const rect = wrap.querySelector('.timer-ring-rect');
+
+  rect.getAnimations().forEach((a) => a.cancel());
+
+  if (deadline === null) {
+    wrap.classList.add('timer-ring--inactive');
+    return;
+  }
+  wrap.classList.remove('timer-ring--inactive');
+
+  const { width, height } = wrap.getBoundingClientRect();
+  if (width === 0 || height === 0) return; // Ansicht noch nicht sichtbar/layoutet, kein Rahmen ohne Groesse
+
+  const inset = 2;
+  const w = Math.max(1, width - inset * 2);
+  const h = Math.max(1, height - inset * 2);
+  svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+  rect.setAttribute('x', String(inset));
+  rect.setAttribute('y', String(inset));
+  rect.setAttribute('width', String(w));
+  rect.setAttribute('height', String(h));
+  rect.setAttribute('rx', '14');
+
+  const perimeter = 2 * (w + h);
+  rect.style.strokeDasharray = String(perimeter);
+
+  const remainingMs = Math.max(0, deadline - Date.now());
+  rect.animate(
+    [{ strokeDashoffset: perimeter }, { strokeDashoffset: 0 }],
+    { duration: remainingMs, easing: 'linear', fill: 'forwards' }
+  );
+}
+
 async function submitResponse(questionId, payload) {
-  const { error } = await supabaseClient.from('responses').insert({
-    participant_id: me.id,
-    question_id: questionId,
-    ...payload,
-  });
+  const { error } = await supabaseClient
+    .from('responses')
+    .upsert(
+      { participant_id: me.id, question_id: questionId, ...payload },
+      { onConflict: 'participant_id,question_id' }
+    );
 
   if (error) {
     logError('participant', error.message, { action: 'submit_response', question_id: questionId });
@@ -208,7 +286,6 @@ async function submitResponse(questionId, payload) {
     return false;
   }
 
-  showView('waiting');
   return true;
 }
 

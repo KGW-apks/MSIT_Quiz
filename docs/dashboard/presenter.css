@@ -82,28 +82,75 @@
   width: auto;
 }
 
-.question-table-wrap {
-  width: 100%;
-  overflow-x: auto;
+/* Dropdown zeigt nur "Frage N" (+ Status), nie den Prompt-Text (siehe
+   renderQuestionPicker in app.js) -- deshalb reicht ein simples Select statt
+   der frueheren vollen Tabelle mit allen Prompts sichtbar. */
+.question-picker-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
-.question-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.question-table th,
-.question-table td {
-  text-align: left;
-  padding: 12px;
-  border-bottom: 1px solid var(--surface);
-}
-
-.question-table th {
+.question-picker-wrap label {
   color: var(--muted);
+  font-size: 0.9rem;
   font-weight: 600;
-  font-size: 0.85rem;
-  text-transform: uppercase;
+}
+
+.question-picker-wrap select {
+  font-size: 0.95rem;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--muted);
+  background: var(--surface);
+  color: var(--text);
+  min-width: 200px;
+}
+
+.question-picker-wrap button {
+  padding: 10px 18px;
+  font-size: 0.95rem;
+  width: auto;
+}
+
+/* Voller Prompt-Text erscheint erst hier, sobald eine Frage tatsaechlich
+   offen (oder gerade geschlossen/im Reveal) ist -- das Publikum sieht ihn
+   dann ohnehin zeitgleich im Dashboard-Tab. */
+.current-question-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 20px;
+  border-radius: var(--radius);
+  border: 1px solid var(--db-border-soft, rgba(148, 163, 184, 0.14));
+  background: rgba(148, 163, 184, 0.05);
+}
+
+.current-question-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.current-question-prompt {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.current-question-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.current-question-foot button {
+  padding: 10px 18px;
+  font-size: 0.95rem;
+  width: auto;
 }
 
 .row-badge {
@@ -124,12 +171,6 @@
 .row-badge--closed {
   background: var(--error);
   color: white;
-}
-
-.question-table button {
-  padding: 10px 16px;
-  font-size: 0.95rem;
-  width: auto;
 }
 
 .presenter-footer {
