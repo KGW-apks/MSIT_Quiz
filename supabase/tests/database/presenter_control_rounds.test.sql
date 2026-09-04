@@ -9,10 +9,15 @@ set local search_path = public, extensions;
 
 select extensions.plan(11);
 
+-- position bewusst hoch (9xxxx): der echte Fragenkatalog belegt 1-164 (siehe
+-- Migration import_fragenkatalog), Test-Fixtures duerfen dort nicht kollidieren.
+-- times_asked = -1 fuer die beiden "nie dran"-Fixtures: der echte Katalog liegt
+-- permanent mit times_asked=0 in derselben Tabelle, -1 sortiert garantiert davor,
+-- damit die Auswahl unten deterministisch bleibt statt vom Katalogstand abzuhaengen.
 insert into public.questions (id, prompt, question_type, options, position, times_asked) values
-  ('cccccccc-0000-0000-0000-000000000001', 'Schon oft dran', 'multiple_choice', '["A", "B"]', 1, 5),
-  ('cccccccc-0000-0000-0000-000000000002', 'Noch nie dran A', 'multiple_choice', '["A", "B"]', 2, 0),
-  ('cccccccc-0000-0000-0000-000000000003', 'Noch nie dran B', 'multiple_choice', '["A", "B"]', 3, 0);
+  ('cccccccc-0000-0000-0000-000000000001', 'Schon oft dran', 'multiple_choice', '["A", "B"]', 90001, 5),
+  ('cccccccc-0000-0000-0000-000000000002', 'Noch nie dran A', 'multiple_choice', '["A", "B"]', 90002, -1),
+  ('cccccccc-0000-0000-0000-000000000003', 'Noch nie dran B', 'multiple_choice', '["A", "B"]', 90003, -1);
 
 insert into public.presenter_secret (id, secret_hash)
 values (true, extensions.crypt('test-secret-123', extensions.gen_salt('bf')));
@@ -28,11 +33,16 @@ select extensions.throws_ok(
   'start_round lehnt Rundengroesse 0 ab'
 );
 
--- 2: round_size groesser als vorhandene Fragen wird abgelehnt.
+-- 2: round_size groesser als vorhandene Fragen wird abgelehnt. Absichtlich ein
+-- absurd hoher Wert statt einer exakten Katalog-Groesse: die echte questions-
+-- Tabelle enthaelt inzwischen permanent den importierten Fragenkatalog (siehe
+-- Migration import_fragenkatalog), die genaue Gesamtzahl ist fuer diesen Test
+-- irrelevant und soll nicht mitgepflegt werden muessen. Nachrichtentext daher
+-- nicht exakt geprueft (haengt vom Katalogstand ab), nur der Errcode.
 select extensions.throws_ok(
-  $$ select public.presenter_control('start_round', null, 'test-secret-123', 4) $$,
+  $$ select public.presenter_control('start_round', null, 'test-secret-123', 999999) $$,
   'P0001',
-  'Rundengroesse (4) groesser als die Anzahl vorhandener Fragen (3)',
+  null,
   'start_round lehnt zu grosse Rundengroesse ab'
 );
 
@@ -79,8 +89,8 @@ select extensions.is(
 
 select extensions.is(
   (select times_asked from public.questions where id = 'cccccccc-0000-0000-0000-000000000002'),
-  1,
-  'open zaehlt times_asked der geoeffneten Frage um 1 hoch'
+  0,
+  'open zaehlt times_asked der geoeffneten Frage um 1 hoch (Fixture-Start -1, siehe oben)'
 );
 
 -- 6: cancel_round setzt Runde, laufende Frage und Status zurueck, times_asked bleibt stehen.
@@ -100,7 +110,7 @@ select extensions.is(
 
 select extensions.is(
   (select times_asked from public.questions where id = 'cccccccc-0000-0000-0000-000000000002'),
-  1,
+  0,
   'cancel_round nimmt bereits gezaehltes times_asked nicht zurueck (die Frage war real dran)'
 );
 

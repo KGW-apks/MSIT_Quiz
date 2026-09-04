@@ -20,10 +20,12 @@ insert into public.participants (id, display_name) values
   ('22222222-2222-2222-2222-222222222222', 'User Zwei'),
   ('33333333-3333-3333-3333-333333333333', 'User Drei');
 
+-- position bewusst hoch (9xxxx): der echte Fragenkatalog belegt 1-164 (siehe
+-- Migration import_fragenkatalog), Test-Fixtures duerfen dort nicht kollidieren.
 insert into public.questions (id, prompt, question_type, options, position) values
-  ('aaaaaaaa-0000-0000-0000-000000000001', 'Hauptstadt von Frankreich?', 'multiple_choice', '["Berlin", "Paris", "Rom"]', 1),
-  ('aaaaaaaa-0000-0000-0000-000000000002', 'Wie viele Sterne hat die EU-Flagge?', 'estimation', null, 2),
-  ('aaaaaaaa-0000-0000-0000-000000000003', 'Randfall: korrekter Wert 0', 'estimation', null, 3);
+  ('aaaaaaaa-0000-0000-0000-000000000001', 'Hauptstadt von Frankreich?', 'multiple_choice', '["Berlin", "Paris", "Rom"]', 90001),
+  ('aaaaaaaa-0000-0000-0000-000000000002', 'Wie viele Sterne hat die EU-Flagge?', 'estimation', null, 90002),
+  ('aaaaaaaa-0000-0000-0000-000000000003', 'Randfall: korrekter Wert 0', 'estimation', null, 90003);
 
 insert into public.question_answers (question_id, correct_option, correct_value, points) values
   ('aaaaaaaa-0000-0000-0000-000000000001', 'Paris', null, 100),

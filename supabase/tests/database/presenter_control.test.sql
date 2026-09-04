@@ -14,8 +14,10 @@ select extensions.plan(5);
 -- anlegen (keine INSERT-Policy, und eine zweite Zeile wuerde die folgenden
 -- Scalar-Subqueries auf quiz_sessions brechen).
 
+-- position bewusst hoch (9xxxx): der echte Fragenkatalog belegt 1-164 (siehe
+-- Migration import_fragenkatalog), Test-Fixtures duerfen dort nicht kollidieren.
 insert into public.questions (id, prompt, question_type, options, position) values
-  ('bbbbbbbb-0000-0000-0000-000000000001', 'Testfrage', 'multiple_choice', '["A", "B"]', 1);
+  ('bbbbbbbb-0000-0000-0000-000000000001', 'Testfrage', 'multiple_choice', '["A", "B"]', 90001);
 
 insert into public.presenter_secret (id, secret_hash)
 values (true, extensions.crypt('test-secret-123', extensions.gen_salt('bf')));
