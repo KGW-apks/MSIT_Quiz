@@ -17,6 +17,8 @@ const VIEWS = ['loading', 'register', 'lobby', 'question', 'waiting', 'missed', 
 
 let me = null; // { id, display_name }
 let ringQuestionId = null; // welche Frage der Timer-Ring zuletzt gestartet hat, verhindert Neustart bei jedem Resubmit
+let ringToken = 0; // pro startTimerRing()-Aufruf hochgezaehlt, macht laufende Retries/Observer aus einem vorherigen Aufruf wirkungslos
+let ringSizeObserver = null; // ResizeObserver-Netz aus startTimerRing, muss vor jedem neuen Aufruf sauber abgehaengt werden
 
 function showView(name) {
   for (const view of VIEWS) {
@@ -242,6 +244,11 @@ function startTimerRing(deadline) {
   const rect = wrap.querySelector('.timer-ring-rect');
 
   rect.getAnimations().forEach((a) => a.cancel());
+  if (ringSizeObserver) {
+    ringSizeObserver.disconnect();
+    ringSizeObserver = null;
+  }
+  const token = ++ringToken; // macht ein Retry/Observer aus einem ueberholten Aufruf (Frage schon gewechselt) wirkungslos
 
   if (deadline === null) {
     wrap.classList.add('timer-ring--inactive');
@@ -249,9 +256,51 @@ function startTimerRing(deadline) {
   }
   wrap.classList.remove('timer-ring--inactive');
 
-  const { width, height } = wrap.getBoundingClientRect();
-  if (width === 0 || height === 0) return; // Ansicht noch nicht sichtbar/layoutet, kein Rahmen ohne Groesse
+  measureAndDrawRing(wrap, svg, rect, deadline, token);
+}
 
+// getBoundingClientRect() direkt nach showView() lieferte auf einem echten
+// Handy vereinzelt 0x0 (Layout/Web-Fonts noch nicht fertig, im lokalen
+// Desktop-Browser-Test nicht reproduzierbar), wodurch der Ring fuer die ganze
+// Frage unsichtbar blieb (Bug vom 2026-09-06, kein Retry vorhanden). Fix in
+// drei Stufen, jede haert die vorherige nur ab, kein Dauer-Polling:
+// 1) sofort messen, 2) nach zwei rAF nochmal (Layout ist dann garantiert
+// fertig gemalt), 3) ResizeObserver als letztes Netz fuer den seltenen Fall,
+// dass selbst das noch zu frueh ist (z.B. verzoegertes Font-Nachladen).
+function measureAndDrawRing(wrap, svg, rect, deadline, token) {
+  const { width, height } = wrap.getBoundingClientRect();
+  if (width > 0 && height > 0) {
+    drawRing(wrap, svg, rect, deadline, width, height);
+    return;
+  }
+
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      if (token !== ringToken) return; // zwischenzeitlich neue Frage/neuer Ring gestartet
+      const size = wrap.getBoundingClientRect();
+      if (size.width > 0 && size.height > 0) {
+        drawRing(wrap, svg, rect, deadline, size.width, size.height);
+        return;
+      }
+      const observer = new ResizeObserver((entries) => {
+        if (token !== ringToken) {
+          observer.disconnect();
+          return;
+        }
+        const { width: w, height: h } = entries[0].contentRect;
+        if (w > 0 && h > 0) {
+          observer.disconnect();
+          if (ringSizeObserver === observer) ringSizeObserver = null;
+          drawRing(wrap, svg, rect, deadline, w, h);
+        }
+      });
+      ringSizeObserver = observer;
+      observer.observe(wrap);
+    });
+  });
+}
+
+function drawRing(wrap, svg, rect, deadline, width, height) {
   const inset = 2;
   const w = Math.max(1, width - inset * 2);
   const h = Math.max(1, height - inset * 2);
