@@ -1,0 +1,97 @@
+-- Schwierigkeitsgrad-Haertung: ersetzt "Quatsch-Distraktoren" (absurde, per
+-- Ausschlussverfahren ohne Kurswissen erkennbare Falschantworten) durch
+-- plausible, thematisch aus dem MSIT-Kurs stammende Distraktoren.
+--
+-- Hintergrund: Knut fand den Katalog "größtenteils viel zu einfach", weil bei
+-- vielen Fragen nur eine Antwort logisch wirkte. Siehe Vault-Notiz
+-- "Fragenkatalog" im Live-Quiz-Tool-Projekt, Abschnitt "Entstehung &
+-- Korrektur-Log", Punkt 8, fuer die vollstaendige Vorher/Nachher-Liste samt
+-- Begruendung je Distraktor.
+--
+-- Aendert NUR `options` (die drei falschen Antworten). Fragetext und die
+-- richtige Antwort (siehe `question_answers.correct_option`) bleiben
+-- wortwoertlich unveraendert, deshalb ist an `question_answers` nichts zu tun.
+-- Betrifft 39 der 115 importierten Fragen (Position 161 ist im Katalog zwar
+-- ebenfalls ueberarbeitet, aber als bekannte Dublette nie importiert worden).
+-- Frage 28 wurde nach Knuts Review (2026-09-06) wieder auf den Originaltext
+-- zurueckgesetzt, siehe Fragenkatalog.md Korrektur-Log Punkt 8: der neue
+-- Distraktor ("Wissensdatenbank, Kontextfenster, Gedaechtnis") war zu nah am
+-- echten Kursinhalt aus Frage 97 und machte die Frage uneindeutig.
+
+update public.questions set options = '["Ältere Embedding-Modelle können keine großen Datenmengen verarbeiten", "Es führt automatisch zu doppelten, redundanten Chunks in der Vektordatenbank", "Es macht die relevante Information (\"die Nadel\") in der wachsenden Datenmenge (\"Heuhaufen\") schwerer auffindbar", "Größere Datenbanken benötigen mehr Rechenleistung fürs Chunking"]'::jsonb where id = '8d7bb551-7024-5325-8220-0999960bc858';
+
+update public.questions set options = '["Es entstehen automatisch doppelte Chunks", "Mehr irrelevanter Kontext verschlechtert das Signal-Rausch-Verhältnis (Nadel-im-Heuhaufen-Problem)", "Ältere Embedding-Modelle unterstützen keine großen Datenmengen", "Es verbessert automatisch die Precision, jedoch nicht den Recall der Suche"]'::jsonb where id = 'b31eb216-88a2-52b4-ae5d-006c1062aeec';
+
+update public.questions set options = '["Die Kosinus-Ähnlichkeit reduziert sich dann auf ein einfaches Skalarprodukt, effizienter berechenbar (GPU-freundlich)", "Weil längere Vektoren mehr Speicherplatz benötigen würden", "Eine willkürliche Konvention ohne technischen Grund", "Weil unterschiedliche Embedding-Modelle sonst nicht miteinander verglichen werden könnten"]'::jsonb where id = 'db862c78-0912-54e1-b5b5-75238c818d32';
+
+update public.questions set options = '["Nur die API kann strukturierten Output liefern", "Die API erhält bei jedem Aufruf nur den aktuellen Input; das Chat-Interface hängt im Hintergrund den bisherigen Gesprächsverlauf an", "Das Chat-Interface nutzt ein anderes Sprachmodell als die API", "Die API kann nur mit einem einzigen fest vorgegebenen Sprachmodell verwendet werden"]'::jsonb where id = '6f0a8b60-cece-56da-9da5-8c9a167d5c72';
+
+update public.questions set options = '["Ein Agent baut sich seinen Pfad vom Trigger zum Ziel selbst; beim Workflow legt der Mensch die Struktur vorher fest", "Ein Workflow läuft nur einmal, ein Agent läuft dauerhaft im Hintergrund", "Ein Workflow kann keine KI-Knoten enthalten, ein Agent nur KI-Knoten", "Ein Agent ist im Gegensatz zum Workflow immer deterministisch und vorhersagbar"]'::jsonb where id = '79eb7557-3341-5dd6-8198-b9fa9ad361c2';
+
+update public.questions set options = '["Workflows benötigen zwingend ein Sprachmodell, Agenten nicht", "Ein Workflow ist vorhersehbar/deterministisch, ein Agent handelt autonom und kann unvorhergesehene Dinge tun", "Agenten sind grundsätzlich günstiger im Betrieb", "Nur ein Agent kann mehrere Tools nutzen, ein Workflow ist auf ein einziges Tool beschränkt"]'::jsonb where id = 'c1cb9958-d96d-5fc5-9587-d1cafdb2d4d5';
+
+update public.questions set options = '["Weil es für die Kommunikation zwischen Agenten noch kein standardisiertes Protokoll wie MCP oder A2A gibt", "Weil ein falsch benannter Key in freier Text-Kommunikation keinen harten Fehler wirft und der Fehler sich unbemerkt einschleicht", "Weil Multi-Agenten-Systeme grundsätzlich keine Fehlerbehandlung (Try/Catch) unterstützen", "Weil LLMs grundsätzlich langsamer rechnen als klassische Software"]'::jsonb where id = 'af2ccb84-34f7-5b11-97d9-c71961b98597';
+
+update public.questions set options = '["Weil MCP-Server nur verschlüsselte Anfragen akzeptieren", "Weil der MCP-Server die Anfrage nur korrekt verarbeiten kann, wenn sie dem vom Tool definierten Schema (Parameter-Namen und -Typen) entspricht", "Weil der MCP-Server sonst keine Antwort (Response) an den Agenten zurückliefern kann", "Weil sonst die Tool-Beschreibung nicht mehr geladen werden kann"]'::jsonb where id = 'b295b623-0c92-595b-8521-a6bb43a42c8e';
+
+update public.questions set options = '["Ein Skill ist eine fest definierte externe Funktion mit Parametern; ein Tool ist eine Instruktion zur Problemlösung, die mehrere Skill-Aufrufe umfassen kann", "Ein Skill verbraucht keine Tokens, ein Tool schon", "Ein Tool ist eine fest definierte externe Funktion mit Parametern; ein Skill ist eine Instruktion zur Problemlösung, die mehrere Tool Calls umfassen kann", "Beide Begriffe sind synonym"]'::jsonb where id = 'a5db9fb9-23cd-58c9-905e-34793e38696c';
+
+update public.questions set options = '["Die Daten (meist als JSON), die beim Aufruf an den Webhook übergeben werden", "Die Anzahl der Knoten in einem Workflow", "Die maximale Antwortzeit eines Servers", "Der HTTP-Header, der den Datentyp der Anfrage beschreibt (Content-Type)"]'::jsonb where id = '2da85511-9364-54e2-a93b-268fc13ce66f';
+
+update public.questions set options = '["E-Mail-Adressen sind niemals eindeutig — mehrere Nutzer könnten zufällig dieselbe Adresse haben", "Nutzer können ihre E-Mail-Adresse ändern — ein vermeintlich stabiler Schlüssel ist es damit nicht wirklich", "Datenbank-Indizes auf Text-Spalten wie E-Mail sind technisch nicht möglich", "E-Mail-Adressen können nicht als Fremdschlüssel (Foreign Key) in anderen Tabellen verwendet werden"]'::jsonb where id = 'dc18b86b-5d34-5c1d-8b55-5b5535598896';
+
+update public.questions set options = '["NULL wird von n8n automatisch als 0 interpretiert, es gibt technisch keinen Unterschied", "NULL kostet mehr Speicherplatz als eine 0", "NULL \"vergiftet\" nachfolgende Berechnungen — Zahl + NULL ergibt wieder NULL", "NULL wird von Data Tables automatisch in Text umgewandelt"]'::jsonb where id = '27c91b99-908a-5901-8914-497573e061cf';
+
+update public.questions set options = '["Sie prüft nur, ob der Text syntaktisch gültiges JSON ist, ohne ein Objekt zurückzugeben", "Sie wandelt einen Text-String, der wie ein JSON-Objekt aussieht, in ein echtes JSON/JavaScript-Objekt um", "Sie verschlüsselt sensible Felder im JSON-Objekt", "Sie komprimiert das JSON-Objekt, um Tokens zu sparen"]'::jsonb where id = '72beeaaa-b2fe-5e45-8262-4dc99494ece7';
+
+update public.questions set options = '["Weil Google Sheets im Gegensatz zu Supabase keine Edge Functions unterstützt", "Weil Google Sheets keine echte Datenbank ist und für größere/kritische Datenmengen ungeeignet ist", "Weil n8n für Google Sheets keinen Trigger-Knoten (z. B. bei neuen Zeilen) anbietet", "Weil sich Google Sheets nur per Schreibzugriff, nicht per Lesezugriff mit einem n8n-Workflow verbinden lässt"]'::jsonb where id = 'eb25cf7c-0fb8-5b6a-b4c9-afb7b6746595';
+
+update public.questions set options = '["Eine Preisstufe (Pricing Tier), die die Kosten pro Rechenzentrum bestimmt", "Eine rein logische Softwaregrenze ohne eigene physische Infrastruktur", "Ein oder mehrere diskrete Rechenzentren mit eigener redundanter Strom- und Netzwerkversorgung innerhalb einer Region", "Eine Zone, die nur für europäische Kunden reserviert ist"]'::jsonb where id = '9eed769c-f6b2-54e0-969d-5825ae4fb4c4';
+
+update public.questions set options = '["PowerShell wird von Microsoft nicht mehr weiterentwickelt", "PowerShell kann keine Git-Befehle ausführen", "PowerShell ist ausschließlich für die Server-Administration gedacht, nicht für die Softwareentwicklung", "Weil Claude Code am besten mit Bash-artigen Shells zusammenarbeitet, wie sie unter Linux/macOS Standard sind"]'::jsonb where id = 'd9e32ae8-447a-55ff-b360-ec860900f004';
+
+update public.questions set options = '["TypeScript wird zur Laufzeit direkt vom Browser interpretiert, ganz ohne vorherige Kompilierung zu JavaScript", "TypeScript = JavaScript mit optionaler statischer Typisierung (ein Compiler prüft Typen, auch wenn nicht jeder Typ explizit angegeben werden muss)", "TypeScript ist älter, JavaScript die modernere Weiterentwicklung", "TypeScript ist eine komplett eigenständige Sprache ohne Bezug zu JavaScript"]'::jsonb where id = '79c87eb1-3ed4-5cdb-8d8e-7f2ad7f81227';
+
+update public.questions set options = '["Generative AI trainiert nur mit gelabelten Daten (Supervised Learning), discriminative AI nur mit ungelabelten Daten (Unsupervised Learning)", "Generative AI kann neue Inhalte erzeugen (z. B. Text oder Bild), discriminative AI klassifiziert bzw. unterscheidet vorgegebene Inputs (z. B. Hund oder Katze auf einem Bild)", "Beide Begriffe bedeuten dasselbe, es sind nur unterschiedliche Marketing-Namen", "Generative AI basiert ausschließlich auf der Transformer-Architektur, discriminative AI ausschließlich auf klassischen Algorithmen wie Entscheidungsbäumen"]'::jsonb where id = '2ed6bd1d-14a9-5ebb-b892-bf8e150bd4fd';
+
+update public.questions set options = '["Weil das Modell jedes Wort einzeln aus einem festen Wörterbuch nachschlägt, statt es in Buchstaben zu zerlegen", "Weil Sprachmodelle grundsätzlich keine Zahlen verarbeiten können", "Weil das Wort zu kurz für eine statistische Auswertung ist", "Weil das Modell Text nicht in einzelnen Buchstaben, sondern in Tokens verarbeitet"]'::jsonb where id = '73193755-3ef4-5436-9ca7-6e2d6ae2e4c1';
+
+update public.questions set options = '["Das Modell ist sich bei jeder Vorhersage zu 100 % sicher", "Das Modell arbeitet besonders langsam", "Das Modell sagt die tatsächlich beobachtete Tokenfolge im Mittel gut vorher (ein Maß für Vorhersagbarkeit, nicht direkt für Textqualität)", "Das Modell kostet besonders viel pro Token"]'::jsonb where id = 'cdfd07e7-e372-597f-b0b9-e285299a58fe';
+
+update public.questions set options = '["Sprachmodelle verarbeiten Text tokenbasiert, wodurch Groß-/Kleinschreibung das Ergebnis beeinflussen kann", "Sprachmodelle wandeln jede Eingabe vor der Verarbeitung automatisch in Kleinschreibung um", "Ein spezialisiertes Named-Entity-Recognition-Modul erkennt Firmennamen unabhängig vom Sprachmodell", "Die Retrieval-Komponente eines RAG-Systems ignoriert Kleinschreibung bei der Suche"]'::jsonb where id = 'a4e01dac-e813-54b0-a6c6-ec50b33a9adf';
+
+update public.questions set options = '["Weil Bildmodelle grundsätzlich keine Backpropagation nutzen, LLMs dagegen schon", "Fine-Tuning funktioniert bei beiden gleich gut, nur die Kosten unterscheiden sich", "Bei Bildklassifikation reicht oft das Nachtrainieren eines kleinen \"Kopfes\" auf gefrorenen Features; bei LLMs verändert Fine-Tuning tendenziell mehr Gewichte und kann bereits gelerntes Wissen überschreiben", "Bildmodelle sind grundsätzlich kleiner und günstiger zu trainieren"]'::jsonb where id = '3755c8da-b2ab-5c90-806a-e22b0ade99c2';
+
+update public.questions set options = '["Ein bezahlter Peer-Review-Journal-Verlag", "Ein Code-Repository ausschließlich für ML-Wettbewerbe", "Eine kostenlose Preprint-Bibliothek, auf der Forscher Paper vor der Peer-Review-Veröffentlichung hochladen können", "Ein privates Preprint-Archiv nur für Mitarbeiter großer Tech-Konzerne wie Google oder OpenAI"]'::jsonb where id = '3a16d98a-0f16-58cf-9f88-8c15fef56845';
+
+update public.questions set options = '["Alle drei Kriterien sind mathematisch identisch und unterscheiden sich nur im Namen", "Alle Kriterien lassen sich mit genug Rechenleistung gleichzeitig erfüllen", "Unter bestimmten Bedingungen kann ein Modell nicht alle Kriterien gleichzeitig erfüllen, da sie sich gegenseitig ausschließen können", "Die drei Kriterien sind gesetzlich durch die DSGVO exakt definiert"]'::jsonb where id = '7f490ded-7ee5-582b-96c3-018a7c50e058';
+
+update public.questions set options = '["Dass der Transformer für die Sequenzverarbeitung auf Attention statt auf Convolutional Layers und Recurrence (RNNs) setzt", "Darauf, dass Nutzer beim Prompten volle Aufmerksamkeit brauchen", "Eine Anspielung darauf, dass Transformer ausschließlich mit einer einzigen Attention-Schicht auskommen", "Darauf, dass Aufmerksamkeit die einzige Ressource ist, die ein Modell beim Training kostet"]'::jsonb where id = '0973356e-d182-5af7-94a8-79e82a9bab3b';
+
+update public.questions set options = '["Die Aktion ist schwer oder gar nicht umkehrbar (z. B. eine bereits versendete E-Mail)", "Die Aktion hat laut Modell eine hohe Konfidenz (Wahrscheinlichkeit) für das richtige Ergebnis", "Die Aktion wird von einem Sub-Agenten statt vom Haupt-Agenten ausgeführt", "Die Aktion liegt innerhalb eines vorher festgelegten Kostenbudgets"]'::jsonb where id = '3963b90b-784a-599f-aae8-a8515ad0f8c5';
+
+update public.questions set options = '["Pseudonymisierte Daten gelten unter der DSGVO nicht mehr als personenbezogene Daten", "Es handelt sich um zwei Begriffe für denselben Vorgang", "Anonymisierung ist DSGVO-rechtlich nicht anerkannt", "Bei Pseudonymisierung ist ein Rückschluss auf die Person über Zusatzwissen theoretisch noch möglich, bei Anonymisierung nicht mehr"]'::jsonb where id = '2913cc32-31da-56ef-8dee-d384a90bd82c';
+
+update public.questions set options = '["Ein mathematisches Rahmenwerk, das über gezielt eingefügtes Rauschen begrenzt, wie stark sich ein Ergebnis durch das Hinzufügen oder Entfernen einer einzelnen Person im Datensatz verändern darf", "Ein Verfahren, das personenbezogene Daten vollständig unkenntlich macht, sodass kein Rückschluss auf die Person mehr möglich ist", "Ein juristisches Prinzip aus der DSGVO, das ausschließlich für Datenübermittlungen außerhalb der EU gilt", "Ein Tool, das automatisch Namen aus PDFs entfernt"]'::jsonb where id = 'a046262a-3754-5875-a33e-f3aa538454dc';
+
+update public.questions set options = '["Man fragt das Modell wiederholt nach seiner internen Modellversion und Trainingsdaten", "Man schreibt direkt \"ignoriere alle vorherigen Anweisungen\"", "Man schreibt den Systemprompt in einer anderen Sprache", "Man tarnt die eigentliche Anfrage als Kinderschutz-Anliegen, um an dieselbe verbotene Information zu kommen"]'::jsonb where id = '5e90a87a-bad8-54cd-a538-2d201655e8da';
+
+update public.questions set options = '["LLMs benötigen für jede PII-Erkennung ein separates Fine-Tuning, NER-Modelle dagegen nicht", "NER-Modelle sind gesetzlich für DSGVO-Konformität vorgeschrieben", "NER-Modelle liefern grundsätzlich höhere Genauigkeit als jedes LLM, unabhängig von der Aufgabe", "NER-Modelle sind genau für diese eine Aufgabe trainiert, brauchen deutlich weniger Parameter/Rechenleistung und sind schneller/günstiger"]'::jsonb where id = '4c9429c4-e261-5489-a2c8-8dca623ba8d4';
+
+update public.questions set options = '["Weil die AUC bei unausgewogenen Klassen (z. B. 99 % Negativbeispiele) grundsätzlich nicht berechenbar ist", "Weil die AUC nur auf den Trainingsdaten berechenbar ist und keine Aussage über neue Daten erlaubt", "Weil man sich im echten Einsatz auf genau einen Schwellenwert festlegen muss — die AUC mittelt aber auch über Schwellenbereiche, die praktisch nie verwendet werden", "Weil sich die AUC nur berechnen lässt, wenn beide Klassen exakt gleich häufig vorkommen (50/50-Verteilung)"]'::jsonb where id = '6b456130-ea2d-5bc0-bfb5-fed061e6d98a';
+
+update public.questions set options = '["Weil Perplexity-basierte Detektoren zwar zuverlässig funktionieren, aber aus Kostengründen nicht eingesetzt werden", "Weil KI-Anbieter aus Datenschutzgründen keine Texte vergleichen dürfen", "Weil Menschen KI-generierten Text mit über 90 % Genauigkeit zuverlässig erkennen können, nur automatisierte Tools scheitern", "Es gibt keinen allgemein zuverlässigen Detektor; selbst spezialisierte Klassifikatoren (z. B. von OpenAI) wurden mangels Genauigkeit wieder eingestellt"]'::jsonb where id = '340823a7-4aad-5e49-bf9c-039fb1212cd7';
+
+update public.questions set options = '["Bulk-Calls sind schneller, aber teurer", "Bulk-Calls kosten ca. 50 % weniger, sind dafür aber asynchron und können je nach Auslastung deutlich länger dauern", "Bulk-Calls kosten genauso viel wie Echtzeit-Calls, sparen aber Rechenzeit auf Anbieterseite", "Bulk-Calls liefern schlechtere Modellqualität, sind aber günstiger"]'::jsonb where id = '8897efd1-54a6-5255-88e3-a9009213102a';
+
+update public.questions set options = '["Der EU AI Act ersetzt seit 2026 die DSGVO vollständig", "Beide regeln dasselbe, nur mit unterschiedlichen Strafrahmen", "Der EU AI Act regelt nur öffentliche Behörden, die DSGVO nur private Unternehmen", "Der EU AI Act regelt Risikoeinstufung und Aufsichtspflichten von KI-Systemen; die DSGVO regelt den Umgang mit personenbezogenen Daten, u. a. unter welchen Voraussetzungen sie auch außerhalb der EU übermittelt werden dürfen"]'::jsonb where id = '90d2d835-e1fa-58b4-843a-22a16d9daacb';
+
+update public.questions set options = '["Weil Jailbreak-Erkennung im Kurs als kontextabhängiges Verständnisproblem beschrieben wurde, während PII-Erkennung als reines Klassifikationsproblem gilt, das auch ein spezialisierter Transformer ohne LLM lösen kann", "Weil kleine, spezialisierte Transformer-Modelle grundsätzlich keine kontextuellen Zusammenhänge erkennen können", "Weil LLM-Aufrufe für Jailbreak-Checks gesetzlich vorgeschrieben sind", "Weil PII-Erkennung teurer ist als Jailbreak-Erkennung"]'::jsonb where id = '9ca9a1c2-1967-5c2f-b4c4-99d9c0a1140d';
+
+update public.questions set options = '["Weil man ohne Kennzeichnung sonst nicht merken würde, dass man mit einer KI statt einem Menschen spricht", "Weil KI-Stimmen sonst rechtlich als Werbung gelten", "Weil ansonsten jede Telefonaufzeichnung automatisch als personenbezogene Daten nach DSGVO gelten würde", "Weil ohne Kennzeichnung die Aufsichtsbehörden keine Bußgelder mehr verhängen dürften"]'::jsonb where id = 'fb0cfd86-429c-55ed-b830-9e4a7c059f43';
+
+update public.questions set options = '["Er sorgt automatisch für DSGVO-Konformität des gesamten Systems, ganz ohne weitere Maßnahmen", "Er verschlüsselt die komplette Datenbank", "Er erkennt und schwärzt personenbezogene Daten in Ein- oder Ausgaben, bevor sie weiterverarbeitet oder geloggt werden", "Er ersetzt die Notwendigkeit eines menschlichen Prüfers (Human in the Loop) vollständig"]'::jsonb where id = '63d2d95d-28de-5a70-a573-b216d31564ce';
+
+update public.questions set options = '["Nur Output-Filterung ist gesetzlich vorgeschrieben, Input-Validierung ist freiwillig", "Es gibt keinen Unterschied, beide prüfen dasselbe", "Ein Angriff kann entweder direkt in der Nutzereingabe stecken oder erst über einen manipulierten Werkzeug-/Tool-Output ins System gelangen", "Input-Validierung ist nur bei Sprachmodellen mit mehr als 70 Milliarden Parametern nötig"]'::jsonb where id = '19eae144-0d48-5c20-a5a0-f1ce5e2c4be1';
+
+update public.questions set options = '["Ein Mensch prüft oder bestätigt kritische Schritte, bevor der Agent sie ausführt", "Der Agent fragt einen Menschen nur, wenn die Konfidenz des Modells unter 50 % liegt", "Ein Mensch ersetzt den Agenten komplett", "Der Agent läuft ausschließlich ohne jede menschliche Aufsicht"]'::jsonb where id = '99f00ab3-aa2a-55fd-a533-b1876999284a';
