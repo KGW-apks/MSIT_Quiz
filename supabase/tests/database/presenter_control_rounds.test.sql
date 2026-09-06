@@ -7,7 +7,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 
-select extensions.plan(11);
+select extensions.plan(13);
 
 -- position bewusst hoch (9xxxx): der echte Fragenkatalog belegt 1-164 (siehe
 -- Migration import_fragenkatalog), Test-Fixtures duerfen dort nicht kollidieren.
@@ -93,7 +93,33 @@ select extensions.is(
   'open zaehlt times_asked der geoeffneten Frage um 1 hoch (Fixture-Start -1, siehe oben)'
 );
 
--- 6: cancel_round setzt Runde, laufende Frage und Status zurueck, times_asked bleibt stehen.
+-- 5b: 'open' ein zweites Mal fuer DIESELBE, bereits offene Frage (Doppelklick
+-- oder doppelter Netzwerk-Retry, siehe Migration prevent_duplicate_open_increment)
+-- ist ein No-Op: times_asked bleibt stehen statt ein zweites Mal hochzuzaehlen.
+select public.presenter_control('open', 'cccccccc-0000-0000-0000-000000000002', 'test-secret-123');
+
+select extensions.is(
+  (select times_asked from public.questions where id = 'cccccccc-0000-0000-0000-000000000002'),
+  0,
+  'ein zweites open auf dieselbe schon offene Frage zaehlt times_asked NICHT nochmal hoch'
+);
+
+-- 6: 'open' NACH Quiz-Ende (status = 'finished') wird abgelehnt, statt die
+-- Runde erneut aufzureissen (Timer/Auto-Advance liefen sonst nochmal komplett
+-- durch, siehe Migration prevent_reopen_after_finish). Nutzt die aus Schritt 3
+-- noch aktive Runde weiter, kein neuer start_round noetig (der waere hier
+-- nicht deterministisch, sobald times_asked der Fixtures nicht mehr bei -1 liegt).
+select public.presenter_control('finish', null, 'test-secret-123');
+
+select extensions.throws_ok(
+  $$ select public.presenter_control('open', 'cccccccc-0000-0000-0000-000000000002', 'test-secret-123') $$,
+  'P0001',
+  'Quiz bereits beendet, keine neue Frage oeffenbar',
+  'open nach finish wird abgelehnt, auch fuer eine Frage innerhalb der Runde'
+);
+
+-- 7: cancel_round setzt Runde, laufende Frage und Status zurueck, times_asked
+-- bleibt stehen -- funktioniert unveraendert auch direkt nach 'finished' (Schritt 6).
 select public.presenter_control('cancel_round', null, 'test-secret-123');
 
 select extensions.is(
