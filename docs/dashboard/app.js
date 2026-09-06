@@ -18,9 +18,9 @@ import {
   aggregateMultipleChoice,
   aggregateEstimation,
   computeLeaderboard,
-  computePointsProgression,
   computeClosingStats,
   computeQuestionProgress,
+  filterToRound,
 } from '../shared/dashboard-state.js';
 
 // 'dashboard' als source deckt beide Tabs ab (Presenter ist seit 2026-09-04 kein
@@ -33,11 +33,8 @@ const TYPE_LABEL = { multiple_choice: 'Multiple-Choice', estimation: 'Schätzung
 const DASHBOARD_STATUS_LABEL = { lobby: 'Lobby', open: 'Frage läuft', closed: 'Ergebnis', finished: 'Quiz beendet' };
 const PRESENTER_STATUS_LABEL = { lobby: 'Lobby', open: 'Frage läuft', closed: 'Frage geschlossen', finished: 'Quiz beendet' };
 const BADGE_LABEL = { pending: '–', open: 'Live', closed: 'Geschlossen' };
-const PROGRESSION_TOP_N = 6;
 const LEADERBOARD_TOP_N = 10; // deckt sich mit dem Rang-Farbverlauf bis Platz 10
 const DEFAULT_ROUND_SIZE = 10;
-
-const LINE_PALETTE = ['#22c55e', '#38bdf8', '#f472b6', '#fbbf24', '#a78bfa', '#2dd4bf', '#fb923c', '#f87171'];
 
 let session = null;
 let questions = [];
@@ -46,10 +43,11 @@ let responses = [];
 let roundQuestions = []; // questions der aktuellen Runde, in Auswahlreihenfolge (session.round_question_ids)
 const revealedAnswers = new Map(); // question_id -> question_answers row, best-effort Cache
 let errorLogs = []; // neueste zuerst, siehe loadErrorLogs()
+let reviewQuestionId = null; // ausgewaehlte Frage im Review-Modus (nur wenn status === 'finished')
 
 let questionChart = null;
 let leaderboardChart = null;
-let progressionChart = null;
+let reviewChart = null;
 let modalChart = null;
 
 function showView(name) {
@@ -271,7 +269,6 @@ function renderDashboard() {
   renderQuestionProgressBar();
   renderHero();
   renderLeaderboard();
-  renderProgression();
 }
 
 function renderQuestionProgressBar() {
@@ -305,6 +302,7 @@ function renderHero() {
   if (session?.status === 'finished') {
     showState('finished');
     renderClosingStats();
+    renderReview();
     return;
   }
 
@@ -388,8 +386,10 @@ function wrapChartLabel(label, maxCharsPerLine = 18) {
   return lines;
 }
 
-function renderQuestionChart(bars) {
-  const ctx = document.getElementById('question-chart').getContext('2d');
+// Gemeinsamer Balken-Renderer fuer die laufende Frage (hero) UND den
+// Review-Modus (siehe renderReviewChart) -- gleiche Darstellung, zwei Canvases.
+function renderBarsChart(canvasEl, bars, { instance, instanceSetter }) {
+  const ctx = canvasEl.getContext('2d');
   const labels = bars.map((b) => wrapChartLabel(b.label));
   const data = bars.map((b) => b.count);
   const colors = bars.map((b) => (b.isCorrect ? gradient(ctx, '#4ade80', '#16a34a') : gradient(ctx, '#60a5fa', '#1d4ed8')));
@@ -399,20 +399,35 @@ function renderQuestionChart(bars) {
     afterLabel: (item) => formatVoterLines(voters[item.dataIndex]),
   };
 
-  if (!questionChart) {
-    questionChart = new Chart(ctx, {
+  if (!instance) {
+    const chart = new Chart(ctx, {
       type: 'bar',
       data: { labels, datasets: [{ data, backgroundColor: colors, borderRadius: 8, maxBarThickness: 64 }] },
       options: chartBaseOptions({ showLegend: false, tooltipCallbacks }),
     });
+    instanceSetter(chart);
     return;
   }
 
-  questionChart.data.labels = labels;
-  questionChart.data.datasets[0].data = data;
-  questionChart.data.datasets[0].backgroundColor = colors;
-  questionChart.options.plugins.tooltip.callbacks = tooltipCallbacks;
-  questionChart.update();
+  instance.data.labels = labels;
+  instance.data.datasets[0].data = data;
+  instance.data.datasets[0].backgroundColor = colors;
+  instance.options.plugins.tooltip.callbacks = tooltipCallbacks;
+  instance.update();
+}
+
+function renderQuestionChart(bars) {
+  renderBarsChart(document.getElementById('question-chart'), bars, {
+    instance: questionChart,
+    instanceSetter: (c) => (questionChart = c),
+  });
+}
+
+function renderReviewChart(bars) {
+  renderBarsChart(document.getElementById('review-chart'), bars, {
+    instance: reviewChart,
+    instanceSetter: (c) => (reviewChart = c),
+  });
 }
 
 // Chart.js-Tooltip-Callback: Zeilen fuer die Namen, die auf diesen Balken
@@ -430,7 +445,13 @@ function formatVoterLines(names) {
 }
 
 function renderClosingStats() {
-  const stats = computeClosingStats({ participants, responses, questions });
+  const stats = computeClosingStats({
+    participants,
+    responses,
+    questions,
+    roundQuestionIds: session?.round_question_ids ?? null,
+    roundStartedAt: session?.round_started_at ?? null,
+  });
   const el = document.getElementById('closing-stats');
   const parts = [];
   if (stats.fastestCorrect?.participant) {
@@ -438,16 +459,26 @@ function renderClosingStats() {
       `<p><strong>Schnellste richtige Antwort:</strong> ${escapeHtml(stats.fastestCorrect.participant.display_name)} (${(stats.fastestCorrect.latencyMs / 1000).toFixed(1)}s)</p>`
     );
   }
-  if (stats.hardestQuestion?.question) {
+  if (stats.mostMissedQuestion?.question) {
     parts.push(
-      `<p><strong>Schwerste Frage:</strong> ${escapeHtml(stats.hardestQuestion.question.prompt)} (${stats.hardestQuestion.misses}× falsch beantwortet)</p>`
+      `<p><strong>Am häufigsten falsch beantwortet:</strong> ${escapeHtml(stats.mostMissedQuestion.question.prompt)} (${stats.mostMissedQuestion.misses}× falsch)</p>`
+    );
+  }
+  if (stats.mostIndecisive?.participant && stats.mostIndecisive.changeCount > 0) {
+    parts.push(
+      `<p><strong>Am meisten umentschieden:</strong> ${escapeHtml(stats.mostIndecisive.participant.display_name)} (${stats.mostIndecisive.changeCount}× die Antwort gewechselt)</p>`
     );
   }
   el.innerHTML = parts.join('') || '<p class="muted">Noch keine Auswertung möglich.</p>';
 }
 
 function renderLeaderboard() {
-  const leaderboard = computeLeaderboard({ participants, responses });
+  const leaderboard = computeLeaderboard({
+    participants,
+    responses,
+    roundQuestionIds: session?.round_question_ids ?? null,
+    roundStartedAt: session?.round_started_at ?? null,
+  });
   const top = leaderboard.slice(0, LEADERBOARD_TOP_N);
 
   document.getElementById('leaderboard-empty').hidden = leaderboard.length > 0;
@@ -537,52 +568,73 @@ function renderLeaderboardChart(canvasEl, leaderboard, { instance, instanceSette
   instance.update();
 }
 
-function renderProgression() {
-  const progression = computePointsProgression({ participants, responses, roundQuestions });
-  const byPoints = [...progression].sort(
-    (a, b) => (b.series.at(-1) ?? 0) - (a.series.at(-1) ?? 0)
-  );
-  const top = byPoints.slice(0, PROGRESSION_TOP_N);
-
-  const hasData = roundQuestions.some((q) => responses.some((r) => r.question_id === q.id));
-  document.getElementById('progression-empty').hidden = hasData;
-  document.getElementById('progression-chart-wrap').hidden = !hasData;
-
-  if (hasData) {
-    renderProgressionChart(document.getElementById('progression-chart'), top, { instanceSetter: (c) => (progressionChart = c), instance: progressionChart });
-  }
-
-  document.getElementById('progression-drilldown').onclick = () => openProgressionDrilldown(byPoints);
-}
-
-function renderProgressionChart(canvasEl, series, { instance, instanceSetter, legend = true }) {
-  // Rundenrelative Nummerierung (#1, #2, ...), nicht die Katalog-position: die
-  // Runde ist eine zufaellige Teilmenge, Katalogpositionen waeren hier luecken-
-  // haft und ohne Aussage ueber die tatsaechliche Reihenfolge in dieser Runde.
-  const labels = roundQuestions.map((_, i) => `#${i + 1}`);
-  const datasets = series.map((s, i) => ({
-    label: s.participant.display_name,
-    data: s.series,
-    borderColor: LINE_PALETTE[i % LINE_PALETTE.length],
-    backgroundColor: LINE_PALETTE[i % LINE_PALETTE.length],
-    tension: 0.3,
-    pointRadius: 3,
-    borderWidth: 2,
-  }));
-
-  if (!instance) {
-    const chart = new Chart(canvasEl.getContext('2d'), {
-      type: 'line',
-      data: { labels, datasets },
-      options: chartBaseOptions({ showLegend: legend }),
-    });
-    instanceSetter(chart);
+// --- Review-Modus (Feature-Wunsch, 2026-09-06) ------------------------------
+// Nach "Quiz beenden" durch die Fragen der abgeschlossenen Runde blaettern und
+// sehen, wie abgestimmt wurde -- rein lesend, ruehrt quiz_sessions/current_question_id
+// nicht an (das ist der Live-Steuerungspfad, siehe openQuestion). question_answers
+// ist fuer alle Runden-Fragen erst lesbar, seit Migration 20260906130000 die
+// Reveal-Policy auf "Quiz komplett beendet" erweitert hat (vorher nur die zuletzt
+// gestellte Frage).
+function renderReview() {
+  const panel = document.getElementById('review-panel');
+  if (roundQuestions.length === 0) {
+    panel.hidden = true;
     return;
   }
+  panel.hidden = false;
 
-  instance.data.labels = labels;
-  instance.data.datasets = datasets;
-  instance.update();
+  const select = document.getElementById('review-picker');
+  const previousValue = select.value;
+  select.innerHTML = '';
+  roundQuestions.forEach((q, i) => {
+    const el = document.createElement('option');
+    el.value = q.id;
+    el.textContent = `${i + 1}. ${q.prompt}`;
+    select.appendChild(el);
+  });
+
+  if (roundQuestions.some((q) => q.id === previousValue)) {
+    reviewQuestionId = previousValue;
+  } else if (!roundQuestions.some((q) => q.id === reviewQuestionId)) {
+    reviewQuestionId = roundQuestions[0].id;
+  }
+  select.value = reviewQuestionId;
+
+  renderReviewResult(reviewQuestionId);
+}
+
+async function renderReviewResult(questionId) {
+  const question = questions.find((q) => q.id === questionId);
+  if (!question) return;
+  const answer = await ensureRevealedAnswer(questionId);
+
+  // Zwischenzeitlich per Dropdown weitergeklickt, waehrend die Antwort noch
+  // lud: verworfenes veraltetes Ergebnis nicht mehr rendern.
+  if (reviewQuestionId !== questionId) return;
+
+  let bars;
+  if (question.question_type === 'multiple_choice') {
+    bars = aggregateMultipleChoice({ question, responses, participants, correctOption: answer?.correct_option ?? null });
+  } else {
+    const result = aggregateEstimation({ question, responses, participants, correctValue: answer?.correct_value ?? null });
+    bars = result.bars;
+  }
+  renderReviewChart(bars);
+
+  const callout = document.getElementById('review-correct-callout');
+  if (answer && question.question_type === 'multiple_choice') {
+    callout.textContent = `Richtige Antwort: ${answer.correct_option}`;
+  } else if (answer && question.question_type === 'estimation') {
+    callout.textContent = `Richtiger Wert: ${answer.correct_value}`;
+  } else {
+    callout.textContent = '';
+  }
+
+  const responsesForQuestion = responses.filter((r) => r.question_id === question.id);
+  const correctCount = responsesForQuestion.filter((r) => r.is_correct).length;
+  const total = responsesForQuestion.length;
+  document.getElementById('review-quick-stats').textContent =
+    total > 0 ? `${correctCount} von ${total} richtig` : 'Keine Antworten';
 }
 
 function chartBaseOptions({ showLegend, tooltipCallbacks = {} }) {
@@ -777,6 +829,11 @@ function wireControls() {
     if (!window.confirm('Aktuelle Runde wirklich abbrechen? Die laufende Frage wird zurueckgesetzt.')) return;
     cancelRound();
   });
+
+  document.getElementById('review-picker').addEventListener('change', (event) => {
+    reviewQuestionId = event.target.value;
+    renderReviewResult(reviewQuestionId);
+  });
 }
 
 // quiz_sessions ist fuer direkte Schreibzugriffe gesperrt (siehe Migration
@@ -912,7 +969,7 @@ function closeModal() {
 }
 
 function openLeaderboardDrilldown(leaderboard) {
-  openModal('Gesamt-Leaderboard', (body) => {
+  openModal('Leaderboard — aktuelle Runde', (body) => {
     const wrap = document.createElement('div');
     wrap.className = 'drilldown-chart-wrap';
     const canvas = document.createElement('canvas');
@@ -928,8 +985,14 @@ function openParticipantDrilldown(participant) {
     table.className = 'drilldown-table';
     table.innerHTML = '<thead><tr><th>#</th><th>Frage</th><th>Ergebnis</th><th>Punkte</th><th>Zeit</th></tr></thead>';
     const tbody = document.createElement('tbody');
+    // Rundenfilter wie beim Leaderboard: sonst schlaegt bei einer wiederholten
+    // Frage die alte Antwort aus einer frueheren Runde hier durch.
+    const roundResponses = filterToRound(responses, {
+      roundQuestionIds: roundQuestions.map((q) => q.id),
+      roundStartedAt: session?.round_started_at ?? null,
+    });
     roundQuestions.forEach((question, i) => {
-      const response = responses.find((r) => r.participant_id === participant.id && r.question_id === question.id);
+      const response = roundResponses.find((r) => r.participant_id === participant.id && r.question_id === question.id);
       const tr = document.createElement('tr');
       const resultLabel = !response ? '–' : response.is_correct ? '✓ richtig' : '✗ falsch';
       const latency = response?.latency_ms != null ? `${(response.latency_ms / 1000).toFixed(1)}s` : '–';
@@ -945,21 +1008,6 @@ function openParticipantDrilldown(participant) {
     });
     table.appendChild(tbody);
     body.appendChild(table);
-  });
-}
-
-function openProgressionDrilldown(allSeries) {
-  openModal('Punkte-Verlauf — alle Teilnehmer', (body) => {
-    const wrap = document.createElement('div');
-    wrap.className = 'drilldown-chart-wrap';
-    const canvas = document.createElement('canvas');
-    wrap.appendChild(canvas);
-    body.appendChild(wrap);
-    renderProgressionChart(canvas, allSeries, {
-      instance: null,
-      instanceSetter: (c) => (modalChart = c),
-      legend: allSeries.length <= 12,
-    });
   });
 }
 

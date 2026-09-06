@@ -56,6 +56,52 @@ test('closed mit Antwort -> waiting view', () => {
   );
 });
 
+// Bug 2026-09-06: wiederholt sich eine Frage in einer spaeteren Runde (gleiche
+// question_id, responses laeuft per Upsert), darf die alte Antwort aus der
+// Vorrunde nicht als "schon beantwortet" durchschlagen. question_opened_at wird
+// bei jedem (Wieder-)Oeffnen neu gestempelt und ist der Cutoff.
+test('open mit Antwort von VOR question_opened_at (Wiederholungs-Frage) -> question view, myResponse wird verworfen', () => {
+  const q = { id: 'q1' };
+  const staleResponse = { id: 'r1', selected_option: 'A', answered_at: '2026-09-01T10:00:00Z' };
+  assert.deepEqual(
+    deriveViewState({
+      status: 'open',
+      currentQuestion: q,
+      myResponse: staleResponse,
+      questionOpenedAt: '2026-09-06T10:00:00Z',
+    }),
+    { view: 'question', question: q, myResponse: null }
+  );
+});
+
+test('open mit Antwort von NACH question_opened_at -> myResponse bleibt erhalten', () => {
+  const q = { id: 'q1' };
+  const freshResponse = { id: 'r1', selected_option: 'A', answered_at: '2026-09-06T10:00:05Z' };
+  assert.deepEqual(
+    deriveViewState({
+      status: 'open',
+      currentQuestion: q,
+      myResponse: freshResponse,
+      questionOpenedAt: '2026-09-06T10:00:00Z',
+    }),
+    { view: 'question', question: q, myResponse: freshResponse }
+  );
+});
+
+test('closed mit Antwort von VOR question_opened_at (Wiederholungs-Frage) -> missed statt waiting', () => {
+  const q = { id: 'q1' };
+  const staleResponse = { id: 'r1', selected_option: 'A', answered_at: '2026-09-01T10:00:00Z' };
+  assert.deepEqual(
+    deriveViewState({
+      status: 'closed',
+      currentQuestion: q,
+      myResponse: staleResponse,
+      questionOpenedAt: '2026-09-06T10:00:00Z',
+    }),
+    { view: 'missed', question: q }
+  );
+});
+
 test('parseGuessValue: gueltige Ganzzahl', () => {
   assert.equal(parseGuessValue('42'), 42);
 });

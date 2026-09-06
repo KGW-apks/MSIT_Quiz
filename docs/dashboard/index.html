@@ -77,6 +77,18 @@
             <div id="hero-finished" class="hero-state" hidden>
               <p class="hero-empty-label">Quiz beendet</p>
               <div id="closing-stats" class="closing-stats"></div>
+
+              <div id="review-panel" class="review-panel" hidden>
+                <div class="review-picker-row">
+                  <label for="review-picker">Frage ansehen</label>
+                  <select id="review-picker"></select>
+                </div>
+                <div class="hero-result-chart">
+                  <canvas id="review-chart" height="220"></canvas>
+                </div>
+                <div id="review-correct-callout" class="hero-correct-callout"></div>
+                <div id="review-quick-stats" class="hero-quick-stats"></div>
+              </div>
             </div>
           </section>
 
@@ -91,16 +103,6 @@
             </div>
           </section>
 
-          <section class="panel progression-panel">
-            <div class="panel-head">
-              <h2>Punkte-Verlauf</h2>
-              <button id="progression-drilldown" type="button" class="button-link">Alle anzeigen</button>
-            </div>
-            <p id="progression-empty" class="muted" hidden>Noch keine Frage abgeschlossen.</p>
-            <div id="progression-chart-wrap" class="progression-chart-wrap">
-              <canvas id="progression-chart"></canvas>
-            </div>
-          </section>
         </div>
 
         <details id="error-log-panel" class="panel error-log-panel">

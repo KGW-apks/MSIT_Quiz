@@ -177,12 +177,7 @@
 
 .leaderboard-panel {
   grid-column: 2;
-  grid-row: 1;
-}
-
-.progression-panel {
-  grid-column: 2;
-  grid-row: 2;
+  grid-row: 1 / span 2;
 }
 
 .hero-state {
@@ -343,8 +338,10 @@
   justify-content: center;
 }
 
-/* Gleiches Prinzip wie .progression-chart-wrap: fester Elternknoten fuers
-   Chart.js-Canvas, sonst Resize-Feedback-Loop (siehe dortiger Kommentar). */
+/* Chart.js braucht bei responsive:true + maintainAspectRatio:false einen
+   Elternknoten mit FESTER Hoehe, sonst haengt die Canvas-Hoehe rekursiv von
+   ihrem eigenen Grid-Item ab -- Resize-Feedback-Loop (in der Praxis beobachtet:
+   >85000px, Tab haengt, siehe .hero-result-chart fuer denselben Fall). */
 .leaderboard-chart-wrap {
   position: relative;
   height: 260px;
@@ -368,24 +365,29 @@
   background: rgba(148, 163, 184, 0.1);
 }
 
-#progression-empty {
-  height: 220px;
+.review-panel {
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 8px;
+  padding-top: 18px;
+  border-top: 1px solid var(--db-border-soft);
 }
 
-/* Chart.js braucht bei responsive:true + maintainAspectRatio:false einen
-   Elternknoten mit FESTER Hoehe. Ohne das haengt die Hoehe des Canvas von
-   seinem eigenen Elternknoten ab, der wiederum (als Grid-Item mit
-   grid-row: auto) seine Hoehe vom Canvas-Inhalt ableiten will: ein
-   Resize-Feedback-Loop, der den Canvas ungebremst hochschaukelt (in der
-   Praxis beobachtet: >85000px, Tab haengt). Gleiches Prinzip wie bei
-   .hero-result-chart und .drilldown-chart-wrap, hier fuer die kompakte
-   Punkte-Verlauf-Ansicht bisher vergessen. */
-.progression-chart-wrap {
-  position: relative;
-  height: 220px;
+.review-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.review-picker-row label {
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.review-picker-row select {
+  flex: 1;
 }
 
 .drilldown-overlay {
@@ -598,8 +600,7 @@
     grid-template-columns: 1fr;
   }
   .hero-panel,
-  .leaderboard-panel,
-  .progression-panel {
+  .leaderboard-panel {
     grid-column: 1;
     grid-row: auto;
   }

@@ -147,7 +147,12 @@ async function renderForSession(quizSession) {
     myResponse = response;
   }
 
-  const state = deriveViewState({ status: quizSession.status, currentQuestion, myResponse });
+  const state = deriveViewState({
+    status: quizSession.status,
+    currentQuestion,
+    myResponse,
+    questionOpenedAt: quizSession.question_opened_at,
+  });
 
   if (state.view === 'question') {
     renderQuestion(state.question, state.myResponse);

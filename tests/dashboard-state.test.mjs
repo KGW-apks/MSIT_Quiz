@@ -5,9 +5,9 @@ import {
   aggregateMultipleChoice,
   aggregateEstimation,
   computeLeaderboard,
-  computePointsProgression,
   computeClosingStats,
   computeQuestionProgress,
+  filterToRound,
 } from '../docs/shared/dashboard-state.js';
 
 test('isRevealed: nur closed/finished gelten als aufgedeckt', () => {
@@ -109,34 +109,40 @@ test('computeLeaderboard: Teilnehmer ohne Antworten bekommt 0 Punkte und null-La
   assert.deepEqual(result, [{ participant: { id: 'p1', display_name: 'A' }, totalPoints: 0, answeredCount: 0, correctCount: 0, avgLatencyMs: null }]);
 });
 
-test('computePointsProgression: kumuliert Punkte in der uebergebenen Rundenreihenfolge, nicht nach position', () => {
-  const participants = [{ id: 'p1' }];
-  const roundQuestions = [
-    { id: 'q2', position: 2 },
-    { id: 'q1', position: 1 },
-  ];
+// Bug 2026-09-06: Leaderboard summierte bisher ueber die GESAMTE Historie
+// statt nur die aktuelle Runde. filterToRound() ist der gemeinsame Filter,
+// hier direkt getestet.
+test('filterToRound: ohne roundQuestionIds (null) laesst alles durch', () => {
+  const responses = [{ question_id: 'q1', answered_at: '2026-01-01T00:00:00Z' }];
+  assert.deepEqual(filterToRound(responses, { roundQuestionIds: null, roundStartedAt: null }), responses);
+});
+
+test('filterToRound: filtert auf question_id UND auf answered_at >= roundStartedAt', () => {
   const responses = [
-    { participant_id: 'p1', question_id: 'q1', points_awarded: 50 },
-    { participant_id: 'p1', question_id: 'q2', points_awarded: 30 },
+    { id: 'r1', question_id: 'q1', answered_at: '2026-09-06T09:00:00Z' }, // andere Frage, nicht in der Runde
+    { id: 'r2', question_id: 'q2', answered_at: '2026-09-01T09:00:00Z' }, // Frage in der Runde, aber Antwort aus einer FRUEHEREN Runde (Wiederholung)
+    { id: 'r3', question_id: 'q2', answered_at: '2026-09-06T10:05:00Z' }, // Frage in der Runde, frisch in DIESER Runde beantwortet
   ];
-  const result = computePointsProgression({ participants, responses, roundQuestions });
-  assert.deepEqual(result, [{ participant: { id: 'p1' }, series: [30, 80] }]);
+  const result = filterToRound(responses, { roundQuestionIds: ['q2', 'q3'], roundStartedAt: '2026-09-06T10:00:00Z' });
+  assert.deepEqual(result.map((r) => r.id), ['r3']);
 });
 
-test('computePointsProgression: fehlende Antwort zaehlt als 0, Reihe bleibt gleich lang wie Rundengroesse', () => {
-  const participants = [{ id: 'p1' }];
-  const roundQuestions = [{ id: 'q1', position: 1 }, { id: 'q2', position: 2 }];
-  const responses = [{ participant_id: 'p1', question_id: 'q1', points_awarded: 50 }];
-  const result = computePointsProgression({ participants, responses, roundQuestions });
-  assert.deepEqual(result[0].series, [50, 50]);
+test('computeLeaderboard: zaehlt nur Antworten der aktuellen Runde, nicht die alte Antwort einer wiederholten Frage aus einer Vorrunde', () => {
+  const participants = [{ id: 'p1', display_name: 'A' }];
+  const responses = [
+    { participant_id: 'p1', question_id: 'q1', points_awarded: 999, answered_at: '2026-09-01T00:00:00Z' }, // Vorrunde
+    { participant_id: 'p1', question_id: 'q1', points_awarded: 50, answered_at: '2026-09-06T10:05:00Z' }, // aktuelle Runde
+  ];
+  const result = computeLeaderboard({
+    participants,
+    responses,
+    roundQuestionIds: ['q1'],
+    roundStartedAt: '2026-09-06T10:00:00Z',
+  });
+  assert.equal(result[0].totalPoints, 50);
 });
 
-test('computePointsProgression: keine Runde (leere Liste) -> leere Reihe pro Teilnehmer', () => {
-  const result = computePointsProgression({ participants: [{ id: 'p1' }], responses: [], roundQuestions: [] });
-  assert.deepEqual(result, [{ participant: { id: 'p1' }, series: [] }]);
-});
-
-test('computeClosingStats: findet schnellste richtige Antwort und schwerste Frage', () => {
+test('computeClosingStats: findet schnellste richtige Antwort und die am haeufigsten falsch beantwortete Frage', () => {
   const participants = [{ id: 'p1', display_name: 'Schnell' }, { id: 'p2', display_name: 'Langsam' }];
   const questions = [{ id: 'q1', prompt: 'Frage 1' }, { id: 'q2', prompt: 'Frage 2' }];
   const responses = [
@@ -148,13 +154,26 @@ test('computeClosingStats: findet schnellste richtige Antwort und schwerste Frag
   const result = computeClosingStats({ participants, responses, questions });
   assert.equal(result.fastestCorrect.participant.display_name, 'Schnell');
   assert.equal(result.fastestCorrect.latencyMs, 500);
-  assert.equal(result.hardestQuestion.question.prompt, 'Frage 2');
-  assert.equal(result.hardestQuestion.misses, 2);
+  assert.equal(result.mostMissedQuestion.question.prompt, 'Frage 2');
+  assert.equal(result.mostMissedQuestion.misses, 2);
 });
 
-test('computeClosingStats: keine Antworten -> beide Werte null', () => {
+test('computeClosingStats: findet den Teilnehmer mit den meisten Antwort-Wechseln (change_count summiert ueber die Runde)', () => {
+  const participants = [{ id: 'p1', display_name: 'Zappelig' }, { id: 'p2', display_name: 'Entschlossen' }];
+  const questions = [{ id: 'q1', prompt: 'Frage 1' }, { id: 'q2', prompt: 'Frage 2' }];
+  const responses = [
+    { participant_id: 'p1', question_id: 'q1', change_count: 3 },
+    { participant_id: 'p1', question_id: 'q2', change_count: 2 },
+    { participant_id: 'p2', question_id: 'q1', change_count: 0 },
+  ];
+  const result = computeClosingStats({ participants, responses, questions });
+  assert.equal(result.mostIndecisive.participant.display_name, 'Zappelig');
+  assert.equal(result.mostIndecisive.changeCount, 5);
+});
+
+test('computeClosingStats: keine Antworten -> alle drei Werte null', () => {
   const result = computeClosingStats({ participants: [], responses: [], questions: [] });
-  assert.deepEqual(result, { fastestCorrect: null, hardestQuestion: null });
+  assert.deepEqual(result, { fastestCorrect: null, mostMissedQuestion: null, mostIndecisive: null });
 });
 
 const progressRoundIds = ['q1', 'q2', 'q3'];

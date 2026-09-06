@@ -7,7 +7,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 
-select extensions.plan(13);
+select extensions.plan(17);
 
 -- position bewusst hoch (9xxxx): der echte Fragenkatalog belegt 1-164 (siehe
 -- Migration import_fragenkatalog), Test-Fixtures duerfen dort nicht kollidieren.
@@ -21,6 +21,15 @@ insert into public.questions (id, prompt, question_type, options, position, time
 
 insert into public.presenter_secret (id, secret_hash)
 values (true, extensions.crypt('test-secret-123', extensions.gen_salt('bf')));
+
+-- Loesungen fuer alle drei Fragen, fuer den Review-Modus-Test unten (Migration
+-- 20260906130000): question_answers muss nach 'finish' fuer ALLE Fragen der
+-- Runde lesbar werden (002+003), nicht nur fuer current_question_id -- aber
+-- weiterhin NICHT fuer eine Frage ausserhalb der Runde (001).
+insert into public.question_answers (question_id, correct_option, points) values
+  ('cccccccc-0000-0000-0000-000000000001', 'A', 100),
+  ('cccccccc-0000-0000-0000-000000000002', 'A', 100),
+  ('cccccccc-0000-0000-0000-000000000003', 'A', 100);
 
 set local role authenticated;
 set local request.jwt.claims to '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}';
@@ -70,6 +79,16 @@ select extensions.is(
   'start_round setzt status zurueck auf lobby'
 );
 
+select extensions.isnt(
+  (select round_started_at from public.quiz_sessions limit 1),
+  null,
+  'start_round stempelt round_started_at (Cutoff fuers rundenbasierte Leaderboard, siehe dashboard-state.js)'
+);
+
+-- 3b: question_answers bleibt fuer BEIDE Runden-Fragen unlesbar, solange das
+-- Quiz noch nicht komplett beendet ist (auch nachdem eine Frage geoeffnet wurde,
+-- siehe Schritt 5 unten) -- Cheat-Schutz unveraendert.
+
 -- 4: 'open' fuer eine Frage AUSSERHALB der aktuellen Runde wird abgelehnt.
 select extensions.throws_ok(
   $$ select public.presenter_control('open', 'cccccccc-0000-0000-0000-000000000001', 'test-secret-123') $$,
@@ -104,12 +123,37 @@ select extensions.is(
   'ein zweites open auf dieselbe schon offene Frage zaehlt times_asked NICHT nochmal hoch'
 );
 
+-- 5c: solange das Quiz noch laeuft, bleibt question_answers fuer die gesamte
+-- Runde unlesbar, auch fuer die gerade offene Frage 002 (Cheat-Schutz waehrend
+-- 'open', unveraendert -- die neue Policy greift erst ab 'finished').
+select extensions.is(
+  (select count(*)::int from public.question_answers),
+  0,
+  'question_answers bleibt waehrend der laufenden Runde komplett unlesbar'
+);
+
 -- 6: 'open' NACH Quiz-Ende (status = 'finished') wird abgelehnt, statt die
 -- Runde erneut aufzureissen (Timer/Auto-Advance liefen sonst nochmal komplett
 -- durch, siehe Migration prevent_reopen_after_finish). Nutzt die aus Schritt 3
 -- noch aktive Runde weiter, kein neuer start_round noetig (der waere hier
 -- nicht deterministisch, sobald times_asked der Fixtures nicht mehr bei -1 liegt).
 select public.presenter_control('finish', null, 'test-secret-123');
+
+-- 6b: Review-Modus (Migration 20260906130000): nach 'finish' werden BEIDE
+-- Runden-Fragen lesbar (002 = current_question_id, aber auch 003, die nie
+-- current_question_id war) -- genau der Bug, den die neue Policy behebt.
+-- Frage 001 ausserhalb der Runde bleibt weiterhin gesperrt.
+select extensions.is(
+  (select count(*)::int from public.question_answers),
+  2,
+  'question_answers wird nach finish fuer beide Runden-Fragen lesbar (auch die nie geoeffnete 003)'
+);
+
+select extensions.is(
+  (select count(*)::int from public.question_answers where question_id = 'cccccccc-0000-0000-0000-000000000001'),
+  0,
+  'question_answers bleibt nach finish fuer eine Frage ausserhalb der Runde gesperrt'
+);
 
 select extensions.throws_ok(
   $$ select public.presenter_control('open', 'cccccccc-0000-0000-0000-000000000002', 'test-secret-123') $$,

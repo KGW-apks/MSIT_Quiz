@@ -102,10 +102,29 @@ export function computeQuestionProgress({ session, roundQuestionIds }) {
   return { done: session.status === 'closed' ? currentIndex + 1 : currentIndex, total };
 }
 
-export function computeLeaderboard({ participants, responses }) {
+// Filtert responses auf die AKTUELLE Runde: sowohl question_id muss Teil der
+// Runde sein, als auch answered_at nicht vor deren Start liegen. Der zweite
+// Teil ist noetig, weil eine wiederholte Frage (times_asked erlaubt das) unter
+// derselben question_id die alte Antwortzeile aus einer frueheren Runde stehen
+// laesst (responses laeuft per Upsert auf participant_id+question_id) -- ohne
+// den Zeit-Cutoff wuerde die als in dieser Runde beantwortet mitzaehlen, auch
+// wenn hier gar nicht neu geantwortet wurde. Bug gefunden von Knut, 2026-09-06.
+export function filterToRound(responses, { roundQuestionIds, roundStartedAt }) {
+  if (!roundQuestionIds) return responses;
+  const idSet = new Set(roundQuestionIds);
+  const startedAtMs = roundStartedAt ? new Date(roundStartedAt).getTime() : null;
+  return responses.filter((r) => {
+    if (!idSet.has(r.question_id)) return false;
+    if (startedAtMs !== null && new Date(r.answered_at).getTime() < startedAtMs) return false;
+    return true;
+  });
+}
+
+export function computeLeaderboard({ participants, responses, roundQuestionIds = null, roundStartedAt = null }) {
+  const roundResponses = filterToRound(responses, { roundQuestionIds, roundStartedAt });
   return participants
     .map((participant) => {
-      const mine = responses.filter((r) => r.participant_id === participant.id);
+      const mine = roundResponses.filter((r) => r.participant_id === participant.id);
       const totalPoints = mine.reduce((sum, r) => sum + (r.points_awarded ?? 0), 0);
       const correctCount = mine.filter((r) => r.is_correct).length;
       const latencies = mine.filter((r) => r.latency_ms != null).map((r) => r.latency_ms);
@@ -117,45 +136,49 @@ export function computeLeaderboard({ participants, responses }) {
     .sort((a, b) => b.totalPoints - a.totalPoints);
 }
 
-// Eine Punkte-Verlaufs-Reihe pro Teilnehmer, kumuliert ueber die Fragen der
-// aktuellen Runde in ihrer Auswahlreihenfolge (fuers Liniendiagramm).
-// roundQuestions ist bereits in dieser Reihenfolge sortiert (siehe Aufrufer),
-// keine Katalog-position-Sortierung mehr: die Runde ist eine zufaellige
-// Teilmenge, position waere hier nicht die richtige Achse.
-export function computePointsProgression({ participants, responses, roundQuestions }) {
-  const ordered = roundQuestions ?? [];
-  return participants.map((participant) => {
-    let running = 0;
-    const series = ordered.map((question) => {
-      const response = responses.find(
-        (r) => r.participant_id === participant.id && r.question_id === question.id
-      );
-      running += response?.points_awarded ?? 0;
-      return running;
-    });
-    return { participant, series };
-  });
-}
-
-// Fuer die Abschluss-Auswertung: schnellste richtige Antwort ueber alle Fragen,
-// und welche Frage die meisten falschen Antworten hatte.
-export function computeClosingStats({ participants, responses, questions }) {
+// Fuer die Abschluss-Auswertung, jeweils nur ueber die AKTUELLE Runde (gleicher
+// Rundenfilter wie beim Leaderboard, gleicher Grund: sonst zaehlt eine
+// wiederholte Frage die alte Antwort aus einer frueheren Runde mit). Nebenfund
+// von Knut, 2026-09-06.
+//
+// "Schwerste Frage" bewusst umbenannt zu mostMissedQuestion/"am haeufigsten
+// falsch beantwortet": Knuts Einwand war, dass "schwerste Frage" Schwierigkeit
+// als objektive Eigenschaft der Frage suggeriert, obwohl es nur eine simple
+// Fehlerzaehlung ueber genau diese Teilnehmer in genau dieser Runde ist.
+export function computeClosingStats({ participants, responses, questions, roundQuestionIds = null, roundStartedAt = null }) {
+  const roundResponses = filterToRound(responses, { roundQuestionIds, roundStartedAt });
   let fastest = null;
-  for (const r of responses) {
+  for (const r of roundResponses) {
     if (r.is_correct && r.latency_ms != null && (fastest === null || r.latency_ms < fastest.latency_ms)) {
       fastest = r;
     }
   }
 
   const missesByQuestion = new Map();
-  for (const r of responses) {
+  for (const r of roundResponses) {
     if (r.is_correct === false) {
       missesByQuestion.set(r.question_id, (missesByQuestion.get(r.question_id) ?? 0) + 1);
     }
   }
-  let hardest = null;
+  let mostMissed = null;
   for (const [questionId, misses] of missesByQuestion) {
-    if (!hardest || misses > hardest.misses) hardest = { questionId, misses };
+    if (!mostMissed || misses > mostMissed.misses) mostMissed = { questionId, misses };
+  }
+
+  // Wer hat waehrend der Runde am meisten die Antwort gewechselt (Feature-
+  // Wunsch 2026-09-06). change_count kommt serverseitig vom Scoring-Trigger
+  // (siehe Migration track_answer_changes), zaehlt schon korrekt auf 0 zurueck,
+  // wenn eine Frage in dieser Runde frisch (wieder-)geoeffnet wurde -- kein
+  // zusaetzlicher Rundenbezug hier noetig, roundResponses filtert nur die
+  // Fragen dieser Runde selbst.
+  const changesByParticipant = new Map();
+  for (const r of roundResponses) {
+    if (!r.change_count) continue;
+    changesByParticipant.set(r.participant_id, (changesByParticipant.get(r.participant_id) ?? 0) + r.change_count);
+  }
+  let mostIndecisive = null;
+  for (const [participantId, changeCount] of changesByParticipant) {
+    if (!mostIndecisive || changeCount > mostIndecisive.changeCount) mostIndecisive = { participantId, changeCount };
   }
 
   return {
@@ -165,10 +188,16 @@ export function computeClosingStats({ participants, responses, questions }) {
           latencyMs: fastest.latency_ms,
         }
       : null,
-    hardestQuestion: hardest
+    mostMissedQuestion: mostMissed
       ? {
-          question: questions.find((q) => q.id === hardest.questionId) ?? null,
-          misses: hardest.misses,
+          question: questions.find((q) => q.id === mostMissed.questionId) ?? null,
+          misses: mostMissed.misses,
+        }
+      : null,
+    mostIndecisive: mostIndecisive
+      ? {
+          participant: participants.find((p) => p.id === mostIndecisive.participantId) ?? null,
+          changeCount: mostIndecisive.changeCount,
         }
       : null,
   };
