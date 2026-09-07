@@ -21,7 +21,7 @@ export function buildPresenterView({ session, questions, responses, participants
   const roundQuestions = hasActiveRound
     ? roundIds.map((id) => byId.get(id)).filter(Boolean)
     : [];
-  const currentIndex = currentQuestionId ? roundIds.indexOf(currentQuestionId) : -1;
+  const currentIndex = currentQuestionId && hasActiveRound ? roundIds.indexOf(currentQuestionId) : -1;
 
   const options = roundQuestions.map((question, index) => ({
     id: question.id,

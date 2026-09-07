@@ -857,7 +857,7 @@ function autoCloseTick() {
   const dueForAutoClose = shouldAutoClose({ session, questions, now: Date.now() });
   if (!dueForAutoClose) return;
   autoCloseInFlight = true;
-  closeQuestion().finally(() => {
+  closeQuestion({ interactive: false }).finally(() => {
     autoCloseInFlight = false;
   });
 }
@@ -912,21 +912,31 @@ function wireControls() {
 // Anonymous-Auth-Zugang das Quiz kapern. Das Passwort wird einmal pro
 // Browser-Sitzung abgefragt und in sessionStorage gecacht, nicht in
 // localStorage, damit es nicht ueber Neustarts hinweg auf dem Geraet bleibt.
-function getPresenterSecret() {
+// interactive=false (Auto-Close/Auto-Advance/Auto-Finish, siehe unten) fragt nie per
+// window.prompt() nach: ein Hintergrund-Timer hat keine User-Geste, manche Browser
+// lehnen prompt() dort mit "prompt() is not supported" rundweg ab (Bugreport 2026-09-07,
+// error_logs). Ohne gecachtes Passwort bleibt die Automatik dann diesen Tick einfach aus,
+// bis der Presenter einmal manuell interagiert (z.B. frisch geladene Seite mit bereits
+// abgelaufenem Timer) -- kein neuer Fehlerzustand, siehe die bereits dokumentierte
+// "Bekannte Grenze" zum Reload waehrend eines laufenden Timers.
+function getPresenterSecret({ interactive = true } = {}) {
   let secret = sessionStorage.getItem('presenterSecret');
-  if (!secret) {
+  if (!secret && interactive) {
     secret = window.prompt('Presenter-Passwort:') ?? '';
     sessionStorage.setItem('presenterSecret', secret);
   }
   return secret;
 }
 
-// Gibt true bei Erfolg zurueck, false bei einem Fehler (Passwort oder Validierung).
-async function callPresenterControl(action, targetQuestionId, roundSize = null) {
+// Gibt true bei Erfolg zurueck, false bei einem Fehler (Passwort, Validierung, oder
+// kein gecachtes Passwort bei einem nicht-interaktiven Aufruf).
+async function callPresenterControl(action, targetQuestionId, roundSize = null, { interactive = true } = {}) {
+  const presenterSecret = getPresenterSecret({ interactive });
+  if (!presenterSecret && !interactive) return false;
   const { error } = await supabaseClient.rpc('presenter_control', {
     action,
     target_question_id: targetQuestionId,
-    presenter_secret: getPresenterSecret(),
+    presenter_secret: presenterSecret,
     round_size: roundSize,
   });
   if (error) {
@@ -978,16 +988,16 @@ function scheduleAutoAdvance() {
     // auf den manuellen "Quiz beenden"-Klick zu warten, damit Presenter und
     // Teilnehmer von selbst auf dem Abschlussbildschirm landen.
     if (nextId) {
-      openQuestion(nextId);
+      openQuestion(nextId, { interactive: false });
     } else {
-      finishQuiz();
+      finishQuiz({ interactive: false });
     }
   }, REVEAL_DWELL_MS);
 }
 
-async function openQuestion(questionId) {
+async function openQuestion(questionId, { interactive = true } = {}) {
   clearScheduledAdvance();
-  const ok = await callPresenterControl('open', questionId);
+  const ok = await callPresenterControl('open', questionId, null, { interactive });
   if (!ok) return;
   // Optimistisches Update statt einer eigenen Realtime-Subscription auf questions:
   // times_asked wird serverseitig in derselben RPC hochgezaehlt (siehe Migration
@@ -996,14 +1006,14 @@ async function openQuestion(questionId) {
   if (question) question.times_asked = (question.times_asked ?? 0) + 1;
 }
 
-async function closeQuestion() {
-  const ok = await callPresenterControl('close', null);
+async function closeQuestion({ interactive = true } = {}) {
+  const ok = await callPresenterControl('close', null, null, { interactive });
   if (ok) scheduleAutoAdvance();
 }
 
-async function finishQuiz() {
+async function finishQuiz({ interactive = true } = {}) {
   clearScheduledAdvance();
-  await callPresenterControl('finish', null);
+  await callPresenterControl('finish', null, null, { interactive });
 }
 
 async function startRound(roundSize) {

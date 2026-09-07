@@ -38,6 +38,18 @@ test('leeres round_question_ids-Array zaehlt wie keine aktive Runde', () => {
   assert.deepEqual(view.options, []);
 });
 
+test('current_question_id gesetzt, aber round_question_ids null (inkonsistenter Session-Zustand, z.B. nach manuellem DB-Reset) -> kein Crash, currentIndex faellt auf -1 zurueck', () => {
+  const view = buildPresenterView({
+    session: { status: 'open', current_question_id: 'q1', round_question_ids: null },
+    questions,
+    responses: [],
+    participants: [],
+  });
+  assert.equal(view.hasActiveRound, false);
+  assert.deepEqual(view.options, []);
+  assert.equal(view.current.question.id, 'q1');
+});
+
 test('Optionen folgen der Rundenreihenfolge (Auswahlreihenfolge), nicht der Katalog-position, und tragen keinen Prompt-Text', () => {
   const view = buildPresenterView({
     session: { status: 'lobby', current_question_id: null, round_question_ids: ['q3', 'q1'] },
