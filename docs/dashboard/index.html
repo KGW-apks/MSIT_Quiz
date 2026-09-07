@@ -167,17 +167,17 @@
       <p class="status-badge status-badge--error">Etwas ist schiefgelaufen</p>
       <p id="error-message" class="muted"></p>
     </section>
-  </main>
 
-  <div id="drilldown-overlay" class="drilldown-overlay" hidden>
-    <div class="drilldown-modal">
-      <div class="drilldown-modal-head">
-        <h2 id="drilldown-title"></h2>
-        <button id="drilldown-close" type="button" class="button-icon" aria-label="Schließen">✕</button>
+    <div id="drilldown-overlay" class="drilldown-overlay" hidden>
+      <div class="drilldown-modal">
+        <div class="drilldown-modal-head">
+          <h2 id="drilldown-title"></h2>
+          <button id="drilldown-close" type="button" class="button-icon" aria-label="Schließen">✕</button>
+        </div>
+        <div id="drilldown-body" class="drilldown-body"></div>
       </div>
-      <div id="drilldown-body" class="drilldown-body"></div>
     </div>
-  </div>
+  </main>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
