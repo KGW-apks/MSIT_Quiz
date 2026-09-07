@@ -29,51 +29,28 @@ test('computeAutoCloseAt: open mit Zeitlimit -> question_opened_at + limit', () 
 
 test('shouldAutoClose: status nicht open -> immer false', () => {
   const session = { status: 'closed', current_question_id: 'q1', question_opened_at: '2026-01-01T00:00:00.000Z' };
-  assert.equal(
-    shouldAutoClose({ session, questions, responseCount: 99, participantCount: 1, now: Date.now() }),
-    false
-  );
+  assert.equal(shouldAutoClose({ session, questions, now: Date.now() }), false);
 });
 
-test('shouldAutoClose: alle Teilnehmer haben geantwortet -> true, auch vor Zeitablauf', () => {
+test('shouldAutoClose: alle haben geantwortet, Zeit aber noch nicht abgelaufen -> false (fester Timer, kein Fruehschluss)', () => {
   const session = { status: 'open', current_question_id: 'q1', question_opened_at: new Date().toISOString() };
-  assert.equal(
-    shouldAutoClose({ session, questions, responseCount: 5, participantCount: 5, now: Date.now() }),
-    true
-  );
-});
-
-test('shouldAutoClose: 0 Teilnehmer loest nicht faelschlich aus (0 >= 0 waere sonst true)', () => {
-  const session = { status: 'open', current_question_id: 'q2', question_opened_at: new Date().toISOString() };
-  assert.equal(
-    shouldAutoClose({ session, questions, responseCount: 0, participantCount: 0, now: Date.now() }),
-    false
-  );
+  assert.equal(shouldAutoClose({ session, questions, now: Date.now() }), false);
 });
 
 test('shouldAutoClose: Zeit abgelaufen -> true', () => {
   const openedAt = new Date(Date.now() - 30_000).toISOString();
   const session = { status: 'open', current_question_id: 'q1', question_opened_at: openedAt };
-  assert.equal(
-    shouldAutoClose({ session, questions, responseCount: 1, participantCount: 10, now: Date.now() }),
-    true
-  );
+  assert.equal(shouldAutoClose({ session, questions, now: Date.now() }), true);
 });
 
-test('shouldAutoClose: weder Zeit abgelaufen noch alle geantwortet -> false', () => {
+test('shouldAutoClose: Zeit noch nicht abgelaufen -> false', () => {
   const openedAt = new Date().toISOString();
   const session = { status: 'open', current_question_id: 'q1', question_opened_at: openedAt };
-  assert.equal(
-    shouldAutoClose({ session, questions, responseCount: 1, participantCount: 10, now: Date.now() }),
-    false
-  );
+  assert.equal(shouldAutoClose({ session, questions, now: Date.now() }), false);
 });
 
-test('shouldAutoClose: kein Zeitlimit und nicht alle geantwortet -> false, wartet auf manuelles Schliessen', () => {
+test('shouldAutoClose: kein Zeitlimit -> false, wartet auf manuelles Schliessen', () => {
   const openedAt = new Date(Date.now() - 100_000).toISOString();
   const session = { status: 'open', current_question_id: 'q2', question_opened_at: openedAt };
-  assert.equal(
-    shouldAutoClose({ session, questions, responseCount: 1, participantCount: 10, now: Date.now() }),
-    false
-  );
+  assert.equal(shouldAutoClose({ session, questions, now: Date.now() }), false);
 });

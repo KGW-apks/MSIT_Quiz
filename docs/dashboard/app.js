@@ -845,8 +845,8 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
-// Laeuft jede Sekunde: schliesst die offene Frage automatisch, wenn ihr Zeitlimit
-// abgelaufen ist oder alle Teilnehmer schon geantwortet haben (siehe shared/quiz-timer.js).
+// Laeuft jede Sekunde: schliesst die offene Frage automatisch, sobald ihr Zeitlimit
+// abgelaufen ist (siehe shared/quiz-timer.js), fester Timer, kein Fruehschluss mehr.
 // Selbstbegrenzend: sobald status != 'open' ist, greift die Regel nicht mehr,
 // kein extra Flag noetig gegen doppeltes Schliessen. Laeuft unabhaengig davon,
 // welcher Tab gerade sichtbar ist, wie zuvor auf der eigenen Presenter-Seite.
@@ -854,13 +854,7 @@ let autoCloseInFlight = false;
 
 function autoCloseTick() {
   if (autoCloseInFlight) return;
-  const dueForAutoClose = shouldAutoClose({
-    session,
-    questions,
-    responseCount: responses.filter((r) => r.question_id === session?.current_question_id).length,
-    participantCount: participants.length,
-    now: Date.now(),
-  });
+  const dueForAutoClose = shouldAutoClose({ session, questions, now: Date.now() });
   if (!dueForAutoClose) return;
   autoCloseInFlight = true;
   closeQuestion().finally(() => {
