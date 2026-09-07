@@ -201,6 +201,16 @@ function subscribeRealtime() {
       responses.push(payload.new);
       render();
     })
+    // Noetig seit rescore_estimation_responses (Migration estimation_closest_wins):
+    // beim Schliessen einer Schaetzfrage aktualisiert der Presenter is_correct/
+    // points_awarded serverseitig per UPDATE fuer ALLE Antworten dieser Frage,
+    // nicht nur die eigene. Ohne diesen Handler wuerden Leaderboard und Ergebnis-
+    // Balken erst nach einem manuellen Reload den echten Gewinner zeigen.
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'responses' }, (payload) => {
+      const idx = responses.findIndex((r) => r.id === payload.new.id);
+      if (idx !== -1) responses[idx] = payload.new;
+      render();
+    })
     .subscribe();
 
   supabaseClient
@@ -670,7 +680,12 @@ function chartBaseOptions({ showLegend, tooltipCallbacks = {} }) {
       // kurzen) Zeilen zusaetzlich noch schraeg dreht -- genau das hatte die
       // langen Multiple-Choice-Optionen unlesbar ueberlappen lassen.
       x: { ticks: { color: '#94a3b8', maxRotation: 0, autoSkip: false }, grid: { color: 'rgba(148,163,184,0.08)' } },
-      y: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(148,163,184,0.08)' }, beginAtZero: true },
+      // precision: 0 zwingt Chart.js auf ganzzahlige Achsenschritte. Ohne das
+      // wählt Chart.js bei kleinen Maximalwerten (z.B. 2 Stimmen, oder 1 Punkt
+      // nach der Punkte-Umstellung auf 1/Frage) von sich aus Dezimalschritte
+      // wie 0.5 -- unsinnig fuer Stimmenzahlen und Punkte, die nur ganzzahlig
+      // vorkommen (Bug gemeldet von Knut, 2026-09-07).
+      y: { ticks: { color: '#94a3b8', precision: 0 }, grid: { color: 'rgba(148,163,184,0.08)' }, beginAtZero: true },
     },
   };
 }
