@@ -142,6 +142,39 @@ test('computeLeaderboard: zaehlt nur Antworten der aktuellen Runde, nicht die al
   assert.equal(result[0].totalPoints, 50);
 });
 
+// Bug 2026-09-07: Leaderboard lief live mit, waehrend eine Frage noch offen
+// war (Multiple-Choice wird sofort bei Insert gewertet) -- auf dem projizierten
+// Dashboard fuer alle sichtbar, ein Schummel-Vektor. Reveal-Gate jetzt auch hier,
+// analog zum Ergebnis-Diagramm der laufenden Frage (isRevealed()).
+test('computeLeaderboard: Antwort auf die AKTUELL OFFENE Frage zaehlt noch nicht mit', () => {
+  const participants = [{ id: 'p1', display_name: 'A' }];
+  const responses = [{ participant_id: 'p1', question_id: 'q1', points_awarded: 1, is_correct: true }];
+  const session = { status: 'open', current_question_id: 'q1' };
+  const result = computeLeaderboard({ participants, responses, session });
+  assert.equal(result[0].totalPoints, 0);
+  assert.equal(result[0].answeredCount, 0);
+});
+
+test('computeLeaderboard: nach dem Schliessen (status closed) zaehlt dieselbe Antwort mit', () => {
+  const participants = [{ id: 'p1', display_name: 'A' }];
+  const responses = [{ participant_id: 'p1', question_id: 'q1', points_awarded: 1, is_correct: true }];
+  const session = { status: 'closed', current_question_id: 'q1' };
+  const result = computeLeaderboard({ participants, responses, session });
+  assert.equal(result[0].totalPoints, 1);
+});
+
+test('computeLeaderboard: eine bereits geschlossene FRUEHERE Frage zaehlt weiter, waehrend die naechste noch offen ist', () => {
+  const participants = [{ id: 'p1', display_name: 'A' }];
+  const responses = [
+    { participant_id: 'p1', question_id: 'q1', points_awarded: 1, is_correct: true }, // schon geschlossen, vorherige Frage
+    { participant_id: 'p1', question_id: 'q2', points_awarded: 1, is_correct: true }, // aktuell offen
+  ];
+  const session = { status: 'open', current_question_id: 'q2' };
+  const result = computeLeaderboard({ participants, responses, session });
+  assert.equal(result[0].totalPoints, 1);
+  assert.equal(result[0].answeredCount, 1);
+});
+
 test('computeClosingStats: findet schnellste richtige Antwort und die am haeufigsten falsch beantwortete Frage', () => {
   const participants = [{ id: 'p1', display_name: 'Schnell' }, { id: 'p2', display_name: 'Langsam' }];
   const questions = [{ id: 'q1', prompt: 'Frage 1' }, { id: 'q2', prompt: 'Frage 2' }];

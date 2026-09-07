@@ -497,6 +497,7 @@ function renderLeaderboard() {
     responses,
     roundQuestionIds: session?.round_question_ids ?? null,
     roundStartedAt: session?.round_started_at ?? null,
+    session,
   });
   const top = leaderboard.slice(0, LEADERBOARD_TOP_N);
 
@@ -1071,16 +1072,21 @@ function openParticipantDrilldown(participant) {
       roundQuestionIds: roundQuestions.map((q) => q.id),
       roundStartedAt: session?.round_started_at ?? null,
     });
+    // Reveal-Gate wie beim Leaderboard (computeLeaderboard): die aktuell offene,
+    // noch nicht geschlossene Frage zeigt hier nie richtig/falsch oder Punkte,
+    // sonst verraet dieser Drilldown live, wer schon richtig/falsch geantwortet
+    // hat, waehrend andere noch abstimmen (Knuts Fund 2026-09-07).
     roundQuestions.forEach((question, i) => {
       const response = roundResponses.find((r) => r.participant_id === participant.id && r.question_id === question.id);
+      const isOpenQuestion = question.id === session?.current_question_id && !isRevealed(session);
+      const resultLabel = isOpenQuestion ? '…' : !response ? '–' : response.is_correct ? '✓ richtig' : '✗ falsch';
+      const latency = isOpenQuestion || response?.latency_ms == null ? '–' : `${(response.latency_ms / 1000).toFixed(1)}s`;
       const tr = document.createElement('tr');
-      const resultLabel = !response ? '–' : response.is_correct ? '✓ richtig' : '✗ falsch';
-      const latency = response?.latency_ms != null ? `${(response.latency_ms / 1000).toFixed(1)}s` : '–';
       tr.innerHTML = `
         <td>${i + 1}</td>
         <td></td>
-        <td class="${response?.is_correct ? 'is-correct' : response ? 'is-wrong' : ''}">${resultLabel}</td>
-        <td>${response?.points_awarded ?? '–'}</td>
+        <td class="${!isOpenQuestion && response?.is_correct ? 'is-correct' : !isOpenQuestion && response ? 'is-wrong' : ''}">${resultLabel}</td>
+        <td>${isOpenQuestion ? '–' : response?.points_awarded ?? '–'}</td>
         <td>${latency}</td>
       `;
       tr.children[1].textContent = question.prompt;

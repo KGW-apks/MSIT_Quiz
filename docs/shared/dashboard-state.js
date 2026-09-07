@@ -120,8 +120,16 @@ export function filterToRound(responses, { roundQuestionIds, roundStartedAt }) {
   });
 }
 
-export function computeLeaderboard({ participants, responses, roundQuestionIds = null, roundStartedAt = null }) {
-  const roundResponses = filterToRound(responses, { roundQuestionIds, roundStartedAt });
+// Reveal-Gate gilt jetzt auch fuers Leaderboard, nicht nur fuers Ergebnis-Diagramm
+// der laufenden Frage: Multiple-Choice-Antworten werden sofort bei Insert gewertet
+// (score_response()-Trigger), ohne diesen Filter waere der Punktestand also live
+// mitgelaufen, waehrend die Frage noch offen ist -- auf dem projizierten Dashboard
+// fuer alle sichtbar, ein Schummel-Vektor (Knuts Fund 2026-09-07). Nur die AKTUELL
+// offene Frage wird ausgeblendet, bereits geschlossene Fragen derselben Runde
+// zaehlen normal weiter.
+export function computeLeaderboard({ participants, responses, roundQuestionIds = null, roundStartedAt = null, session = null }) {
+  const roundResponses = filterToRound(responses, { roundQuestionIds, roundStartedAt })
+    .filter((r) => isRevealed(session) || !session?.current_question_id || r.question_id !== session.current_question_id);
   return participants
     .map((participant) => {
       const mine = roundResponses.filter((r) => r.participant_id === participant.id);
