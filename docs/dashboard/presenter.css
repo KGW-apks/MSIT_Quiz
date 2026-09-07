@@ -47,6 +47,70 @@
   gap: 16px;
 }
 
+/* Teilnehmerliste zum Entfernen: <details>, standardmaessig zugeklappt (wie
+   das Fehler-Log im Dashboard-Tab, dashboard.css .error-log-panel), damit sie
+   waehrend der Projektion keinen Platz wegnimmt und nur bei Bedarf (jemand
+   muss raus) aufgeklappt wird. */
+.participants-panel {
+  padding: 4px 0;
+}
+
+.participants-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font-weight: 700;
+  list-style: none;
+}
+
+.participants-summary::-webkit-details-marker {
+  display: none;
+}
+
+.participants-summary::before {
+  content: "▸";
+  color: var(--muted);
+  transition: transform 0.15s ease;
+}
+
+.participants-panel[open] .participants-summary::before {
+  transform: rotate(90deg);
+}
+
+.participants-list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  max-height: 280px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.participant-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--db-border-soft, rgba(148, 163, 184, 0.14));
+  background: rgba(148, 163, 184, 0.05);
+}
+
+.participant-name {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.participant-remove-button {
+  padding: 6px 14px;
+  font-size: 0.85rem;
+  width: auto;
+}
+
 .round-panel {
   display: flex;
   flex-direction: column;

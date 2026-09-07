@@ -8,8 +8,15 @@ const questions = [
   { id: 'q3', position: 3 },
 ];
 
+// Erzeugt n Dummy-Teilnehmer, wenn ein Test nur die Anzahl braucht, nicht
+// die Namen selbst (participantCount wird seit 2026-09-07 aus der uebergebenen
+// participants-Liste abgeleitet statt separat durchgereicht).
+function makeParticipants(n) {
+  return Array.from({ length: n }, (_, i) => ({ id: `p${i}`, display_name: `Teilnehmer ${i}` }));
+}
+
 test('keine Runde aktiv (round_question_ids null) -> keine Optionen, canStartRound true, canCancelRound false', () => {
-  const view = buildPresenterView({ session: null, questions, responses: [], participantCount: 0 });
+  const view = buildPresenterView({ session: null, questions, responses: [], participants: [] });
   assert.equal(view.status, 'lobby');
   assert.equal(view.hasActiveRound, false);
   assert.deepEqual(view.options, []);
@@ -25,7 +32,7 @@ test('leeres round_question_ids-Array zaehlt wie keine aktive Runde', () => {
     session: { status: 'lobby', current_question_id: null, round_question_ids: [] },
     questions,
     responses: [],
-    participantCount: 0,
+    participants: [],
   });
   assert.equal(view.hasActiveRound, false);
   assert.deepEqual(view.options, []);
@@ -36,7 +43,7 @@ test('Optionen folgen der Rundenreihenfolge (Auswahlreihenfolge), nicht der Kata
     session: { status: 'lobby', current_question_id: null, round_question_ids: ['q3', 'q1'] },
     questions,
     responses: [],
-    participantCount: 0,
+    participants: [],
   });
   assert.deepEqual(view.options.map((o) => o.id), ['q3', 'q1']);
   assert.deepEqual(view.options.map((o) => o.label), ['Frage 1', 'Frage 2']);
@@ -49,7 +56,7 @@ test('Fragen ausserhalb der Runde tauchen nicht in den Optionen auf, auch wenn s
     session: { status: 'lobby', current_question_id: null, round_question_ids: ['q1'] },
     questions,
     responses: [],
-    participantCount: 0,
+    participants: [],
   });
   assert.deepEqual(view.options.map((o) => o.id), ['q1']);
 });
@@ -59,7 +66,7 @@ test('status open mit current_question_id -> current traegt den vollen Prompt, i
     session: { status: 'open', current_question_id: 'q2', round_question_ids: ['q1', 'q2', 'q3'] },
     questions,
     responses: [],
-    participantCount: 5,
+    participants: makeParticipants(5),
   });
   assert.equal(view.current.question.id, 'q2');
   assert.equal(view.current.badge, 'open');
@@ -82,7 +89,7 @@ test('status closed mit current_question_id -> current.badge closed, Schliessen 
     session: { status: 'closed', current_question_id: 'q2', round_question_ids: ['q1', 'q2', 'q3'] },
     questions,
     responses: [],
-    participantCount: 5,
+    participants: makeParticipants(5),
   });
   assert.equal(view.current.badge, 'closed');
   assert.equal(view.canClose, false);
@@ -94,7 +101,7 @@ test('status finished -> current bleibt gesetzt (letzte Frage), aber keine Aktio
     session: { status: 'finished', current_question_id: 'q3', round_question_ids: ['q1', 'q2', 'q3'] },
     questions,
     responses: [],
-    participantCount: 5,
+    participants: makeParticipants(5),
   });
   assert.equal(view.current.badge, 'pending');
   assert.equal(view.canClose, false);
@@ -113,14 +120,43 @@ test('responseCount (current) zaehlt nur Antworten der aktuellen Frage', () => {
     session: { status: 'open', current_question_id: 'q1', round_question_ids: ['q1', 'q2', 'q3'] },
     questions,
     responses,
-    participantCount: 10,
+    participants: makeParticipants(10),
   });
   assert.equal(view.current.responseCount, 2);
 });
 
-test('participantCount wird unveraendert durchgereicht', () => {
-  const view = buildPresenterView({ session: null, questions: [], responses: [], participantCount: 17 });
+test('participantCount wird aus der Laenge der participants-Liste abgeleitet', () => {
+  const view = buildPresenterView({ session: null, questions: [], responses: [], participants: makeParticipants(17) });
   assert.equal(view.participantCount, 17);
+});
+
+test('participants: leere Liste -> leeres Array, keine Fehler', () => {
+  const view = buildPresenterView({ session: null, questions: [], responses: [], participants: [] });
+  assert.deepEqual(view.participants, []);
+});
+
+test('participants: jeder Eintrag traegt id und name (aus display_name), sonst nichts', () => {
+  const view = buildPresenterView({
+    session: null,
+    questions: [],
+    responses: [],
+    participants: [{ id: 'p1', display_name: 'Bea' }],
+  });
+  assert.deepEqual(view.participants, [{ id: 'p1', name: 'Bea' }]);
+});
+
+test('participants: alphabetisch nach Namen sortiert, unabhaengig von der Eingabe-Reihenfolge', () => {
+  const view = buildPresenterView({
+    session: null,
+    questions: [],
+    responses: [],
+    participants: [
+      { id: 'p3', display_name: 'Charlie' },
+      { id: 'p1', display_name: 'Anna' },
+      { id: 'p2', display_name: 'Bea' },
+    ],
+  });
+  assert.deepEqual(view.participants.map((p) => p.name), ['Anna', 'Bea', 'Charlie']);
 });
 
 test('computeNextQuestionId: keine current_question_id -> null', () => {

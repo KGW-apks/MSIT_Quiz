@@ -6,8 +6,12 @@
 // Statt "rows" gibt es jetzt "options" (nur Nummer + Status, fuers Dropdown)
 // und "current" (die aktuell offene/geschlossene Frage inkl. vollem Prompt,
 // der ist sicher zu zeigen, das Publikum sieht ihn zeitgleich im Dashboard).
+//
+// Seit 2026-09-07 zusaetzlich "participants": alphabetisch sortierte Liste
+// {id, name} fuers Entfernen einzelner Teilnehmer (siehe app.js:
+// removeParticipant / Migration presenter_remove_participant).
 
-export function buildPresenterView({ session, questions, responses, participantCount }) {
+export function buildPresenterView({ session, questions, responses, participants }) {
   const status = session?.status ?? 'lobby';
   const currentQuestionId = session?.current_question_id ?? null;
   const roundIds = session?.round_question_ids ?? null;
@@ -37,12 +41,19 @@ export function buildPresenterView({ session, questions, responses, participantC
       }
     : null;
 
+  // Alphabetisch statt nach Anmeldereihenfolge: der Presenter sucht beim
+  // Entfernen einen bestimmten Namen, nicht "wer kam zuletzt".
+  const participantList = [...participants]
+    .sort((a, b) => a.display_name.localeCompare(b.display_name, 'de'))
+    .map((p) => ({ id: p.id, name: p.display_name }));
+
   return {
     status,
     hasActiveRound,
     options,
     current,
-    participantCount,
+    participantCount: participants.length,
+    participants: participantList,
     canClose: status === 'open',
     canFinish: status === 'open' || status === 'closed',
     // Eine neue Runde ueberschreibt die Auswahl der laufenden, deshalb erst

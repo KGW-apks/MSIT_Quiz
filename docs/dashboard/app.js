@@ -209,6 +209,15 @@ function subscribeRealtime() {
       participants.push(payload.new);
       render();
     })
+    // Faengt ein Entfernen ueber ein zweites geoeffnetes Presenter-/Dashboard-
+    // Fenster ab (removeParticipant spiegelt den eigenen Fall schon lokal,
+    // dieser Handler ist fuer alle anderen offenen Tabs). payload.old traegt
+    // ohne REPLICA IDENTITY FULL nur die Primary-Key-Spalte id, das reicht hier.
+    .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'participants' }, (payload) => {
+      participants = participants.filter((p) => p.id !== payload.old.id);
+      responses = responses.filter((r) => r.participant_id !== payload.old.id);
+      render();
+    })
     .subscribe();
 
   supabaseClient
@@ -697,10 +706,12 @@ function tickCountdown() {
 // --- Rendering: Presenter-Tab ----------------------------------------------
 
 function renderPresenter() {
-  const view = buildPresenterView({ session, questions, responses, participantCount: participants.length });
+  const view = buildPresenterView({ session, questions, responses, participants });
 
   document.getElementById('presenter-session-status').textContent = PRESENTER_STATUS_LABEL[view.status] ?? view.status;
   document.getElementById('presenter-participant-count').textContent = `${view.participantCount} angemeldet`;
+
+  renderParticipantsList(view.participants);
 
   document.getElementById('no-round-hint').hidden = view.hasActiveRound;
   document.getElementById('question-picker-wrap').hidden = !view.hasActiveRound;
@@ -729,6 +740,56 @@ function renderPresenter() {
   document.getElementById('round-size-input').max = String(questions.length);
 
   renderCountdownOnly();
+}
+
+// Alphabetisch sortierte Liste aus buildPresenterView, je Zeile ein Entfernen-
+// Button. Neu aufgebaut bei jedem render() statt diffend aktualisiert, wie
+// auch renderErrorLog/renderQuestionPicker das handhaben -- die Liste bleibt
+// klein genug (Obergrenze 150 Teilnehmer, siehe Migration participants_cap),
+// dass ein kompletter Rebuild nicht spuerbar ist.
+function renderParticipantsList(list) {
+  const container = document.getElementById('presenter-participants-list');
+  document.getElementById('presenter-participants-empty').hidden = list.length > 0;
+  container.innerHTML = '';
+
+  for (const participant of list) {
+    const li = document.createElement('li');
+    li.className = 'participant-row';
+    li.innerHTML = `
+      <span class="participant-name"></span>
+      <button type="button" class="button-secondary participant-remove-button">Entfernen</button>
+    `;
+    li.querySelector('.participant-name').textContent = participant.name;
+    li.querySelector('.participant-remove-button').addEventListener('click', () => removeParticipant(participant));
+    container.appendChild(li);
+  }
+}
+
+// participants ist fuer direkte Deletes gesperrt (keine delete-Policy, gleiches
+// Muster wie quiz_sessions): laeuft ueber presenter_remove_participant() mit
+// demselben Presenter-Passwort wie callPresenterControl, siehe Migration
+// presenter_remove_participant. Cascade loescht dessen responses server-
+// seitig mit, hier lokal gespiegelt, damit Dashboard-Aggregationen (Leader-
+// board, Balken) sofort ohne Reload konsistent bleiben.
+async function removeParticipant(participant) {
+  if (!window.confirm(`"${participant.name}" wirklich entfernen? Abgegebene Antworten gehen verloren.`)) return;
+
+  const { error } = await supabaseClient.rpc('presenter_remove_participant', {
+    target_participant_id: participant.id,
+    presenter_secret: getPresenterSecret(),
+  });
+  if (error) {
+    if (error.code === '28000') {
+      sessionStorage.removeItem('presenterSecret');
+    }
+    logError('dashboard', error.message, { action: 'presenter_remove_participant', tab: 'presenter' });
+    showToast(error.message);
+    return;
+  }
+
+  participants = participants.filter((p) => p.id !== participant.id);
+  responses = responses.filter((r) => r.participant_id !== participant.id);
+  render();
 }
 
 // Dropdown zeigt bewusst nur "Frage N" (+ Status), nie den Prompt-Text: Mit-
