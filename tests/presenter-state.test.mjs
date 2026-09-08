@@ -25,6 +25,7 @@ test('keine Runde aktiv (round_question_ids null) -> keine Optionen, canStartRou
   assert.equal(view.canCancelRound, false);
   assert.equal(view.canClose, false);
   assert.equal(view.canFinish, false);
+  assert.equal(view.canResetToLobby, false);
 });
 
 test('leeres round_question_ids-Array zaehlt wie keine aktive Runde', () => {
@@ -94,6 +95,7 @@ test('status open mit current_question_id -> current traegt den vollen Prompt, i
   assert.equal(view.canFinish, true);
   assert.equal(view.canStartRound, false);
   assert.equal(view.canCancelRound, true);
+  assert.equal(view.canResetToLobby, false);
 });
 
 test('status closed mit current_question_id -> current.badge closed, Schliessen nicht mehr moeglich', () => {
@@ -108,7 +110,7 @@ test('status closed mit current_question_id -> current.badge closed, Schliessen 
   assert.equal(view.canFinish, true);
 });
 
-test('status finished -> current bleibt gesetzt (letzte Frage), aber keine Aktion mehr moeglich, neue Runde startbar', () => {
+test('status finished -> current bleibt gesetzt (letzte Frage), aber keine Aktion mehr moeglich, neue Runde startbar, Lobby-Reset moeglich', () => {
   const view = buildPresenterView({
     session: { status: 'finished', current_question_id: 'q3', round_question_ids: ['q1', 'q2', 'q3'] },
     questions,
@@ -120,6 +122,19 @@ test('status finished -> current bleibt gesetzt (letzte Frage), aber keine Aktio
   assert.equal(view.canFinish, false);
   assert.equal(view.canStartRound, true);
   assert.equal(view.canCancelRound, false);
+  assert.equal(view.canResetToLobby, true);
+});
+
+test('canResetToLobby nur bei status finished true, sonst immer false', () => {
+  for (const status of ['lobby', 'open', 'closed']) {
+    const view = buildPresenterView({
+      session: { status, current_question_id: 'q1', round_question_ids: ['q1', 'q2', 'q3'] },
+      questions,
+      responses: [],
+      participants: [],
+    });
+    assert.equal(view.canResetToLobby, false, `status=${status}`);
+  }
 });
 
 test('responseCount (current) zaehlt nur Antworten der aktuellen Frage', () => {

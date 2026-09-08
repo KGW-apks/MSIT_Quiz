@@ -60,6 +60,13 @@ export function buildPresenterView({ session, questions, responses, participants
     // wieder erlaubt, wenn keine Runde aktiv ist oder das Quiz schon beendet wurde.
     canStartRound: !hasActiveRound || status === 'finished',
     canCancelRound: hasActiveRound && status !== 'finished',
+    // Nach "Quiz beenden" bleibt die Session auf 'finished' stehen, bis eine neue
+    // Runde startet. Ein neu eintreffender Teilnehmer sieht bis dahin "Quiz
+    // beendet, danke fuers Mitmachen" statt eines Begruessungsbildschirms, obwohl
+    // er noch gar nicht mitgemacht hat. Dieser Schalter reicht die 'lobby'-Ansicht
+    // (die es bei den Teilnehmern bereits gibt) separat von "Runde starten" an,
+    // ohne dass gleich eine neue Fragenauswahl getroffen werden muss.
+    canResetToLobby: status === 'finished',
   };
 }
 

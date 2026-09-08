@@ -746,6 +746,7 @@ function renderPresenter() {
   }
 
   document.getElementById('finish-button').disabled = !view.canFinish;
+  document.getElementById('reset-to-lobby-button').disabled = !view.canResetToLobby;
   document.getElementById('start-round-button').disabled = !view.canStartRound;
   document.getElementById('round-size-input').disabled = !view.canStartRound;
   document.getElementById('cancel-round-button').disabled = !view.canCancelRound;
@@ -881,6 +882,10 @@ function renderCountdownOnly() {
 
 function wireControls() {
   document.getElementById('finish-button').addEventListener('click', () => finishQuiz());
+  document.getElementById('reset-to-lobby-button').addEventListener('click', () => {
+    if (!window.confirm('Zurueck zur Lobby? Teilnehmer sehen wieder den Begruessungsbildschirm, die Abschluss-Auswertung dieser Runde ist danach nicht mehr einsehbar.')) return;
+    cancelRound();
+  });
   document.getElementById('close-question-button').addEventListener('click', () => closeQuestion());
   document.getElementById('open-question-button').addEventListener('click', () => {
     const id = document.getElementById('question-picker').value;
@@ -1022,6 +1027,9 @@ async function startRound(roundSize) {
   await callPresenterControl('start_round', null, roundSize);
 }
 
+// Wird von zwei Buttons genutzt: "Abbrechen" waehrend einer laufenden Runde
+// und "Zurueck zur Lobby" nach status='finished' (siehe canResetToLobby) --
+// beides braucht denselben Reset (Runde+Frage leeren, status auf 'lobby').
 async function cancelRound() {
   clearScheduledAdvance();
   await callPresenterControl('cancel_round', null);
