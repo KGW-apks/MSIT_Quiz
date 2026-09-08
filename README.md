@@ -5,6 +5,14 @@ Smartphone teil (Name eingeben, keine sichtbare Auth-UI), waehrend im
 Presenter-Dashboard Fragen gesteuert werden und sich Live-Diagramme sowie ein
 Leaderboard aufbauen.
 
+Nach der Registrierung waehlen Teilnehmer:innen zwischen zwei Modi: **Team**
+(gemeinsame Live-Runde, vom Presenter gesteuert, wie oben beschrieben) oder
+**Solo** (eigenes Tempo: Anzahl Fragen selbst waehlen, im eigenen Tempo
+durchklicken, sofortiges Richtig/Falsch-Feedback nach jeder Frage, am Ende
+eine eigene Auswertung mit Punkten, Trefferquote und Diagramm). Solo laeuft
+komplett unabhaengig vom Team-Zustand (eigene Tabellen, siehe Datenmodell),
+kein Presenter noetig.
+
 ## Architektur
 
 - **Frontend**: Vanilla HTML/CSS/JavaScript (ES-Module), `supabase-js` per
@@ -71,6 +79,13 @@ Frontend lokal ausliefern (statischer Server auf `docs/`), z. B.:
 python -m http.server 8791 --directory docs
 ```
 
+Fuer einen echten End-to-end-Test gegen die lokale Instanz `docs/shared/supabase-client.js`
+voruebergehend auf die von `supabase start` ausgegebene `API_URL`/`PUBLISHABLE_KEY`
+umstellen (nicht committen, das Frontend zeigt fuers Deployment auf das echte
+Projekt). `supabase/config.toml` hat `enable_anonymous_sign_ins = true` fuer
+die lokale Instanz, damit Registrierung (anonyme Anmeldung) lokal ueberhaupt
+funktioniert — betrifft nur `supabase start`, nicht die Cloud-Projekt-Config.
+
 ## Datenmodell
 
 | Tabelle | Zweck |
@@ -78,8 +93,10 @@ python -m http.server 8791 --directory docs
 | `participants` | Teilnehmer:in, `id` = `auth.uid()` der Anonymous-Session |
 | `questions` | Fragenkatalog (`multiple_choice` / `estimation`), `times_asked` fuer die Rundenauswahl |
 | `quiz_sessions` | Singleton-Zeile fuer den laufenden Event-Zustand (Status, laufende Frage, aktive Runde) |
-| `question_answers` | Loesungen, per RLS fuer keinen Client lesbar |
-| `responses` | Antworten je Teilnehmer:in und Frage, Scoring serverseitig vom Trigger gesetzt |
+| `question_answers` | Loesungen, per RLS fuer keinen Client lesbar (Ausnahme: eigene Frage nach eigener Antwort, Team wie Solo) |
+| `responses` | Team-Antworten je Teilnehmer:in und Frage, Scoring serverseitig vom Trigger gesetzt |
+| `solo_sessions` | Ein Solo-Lauf einer Person (gewaehlte Fragen, aktueller Fortschritt, Status) |
+| `solo_responses` | Antworten innerhalb eines Solo-Laufs, sofortiges serverseitiges Scoring (keine Team-Vergleichslogik noetig) |
 
 ## Deployment
 

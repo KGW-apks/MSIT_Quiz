@@ -6,6 +6,7 @@ import { supabaseClient } from '../shared/supabase-client.js';
 import { deriveViewState, parseGuessValue } from '../shared/quiz-state.js';
 import { computeAutoCloseAt } from '../shared/quiz-timer.js';
 import { installGlobalErrorHandlers, logError } from '../shared/error-log.js';
+import { pickRandomQuestions, describeAnswer, computeSoloResult } from '../shared/solo-state.js';
 
 // error_logs verlangt eine authentifizierte Session (RLS): ein Fehler VOR erfolgreichem
 // signInAnonymously (z.B. Netzwerkausfall genau in dem Moment) landet deshalb nur in der
@@ -13,12 +14,19 @@ import { installGlobalErrorHandlers, logError } from '../shared/error-log.js';
 // die 150er-Teilnehmerobergrenze) ist erfasst.
 installGlobalErrorHandlers('participant');
 
-const VIEWS = ['loading', 'register', 'lobby', 'question', 'waiting', 'missed', 'finished', 'error'];
+const VIEWS = [
+  'loading', 'register', 'mode-select', 'solo-setup', 'solo-question', 'solo-result',
+  'lobby', 'question', 'waiting', 'missed', 'finished', 'error',
+];
 
 let me = null; // { id, display_name }
 let ringQuestionId = null; // welche Frage der Timer-Ring zuletzt gestartet hat, verhindert Neustart bei jedem Resubmit
 let ringToken = 0; // pro startTimerRing()-Aufruf hochgezaehlt, macht laufende Retries/Observer aus einem vorherigen Aufruf wirkungslos
 let ringSizeObserver = null; // ResizeObserver-Netz aus startTimerRing, muss vor jedem neuen Aufruf sauber abgehaengt werden
+
+let allQuestionsCache = null; // kompletter Fragenkatalog, einmal geladen (Solo braucht ihn fuer Auswahl+Anzeige), aendert sich nicht waehrend einer Session
+let soloSession = null; // aktuelle solo_sessions-Zeile { id, question_ids, current_index, status, ... }
+let soloResultChart = null;
 
 function showView(name) {
   for (const view of VIEWS) {
@@ -41,6 +49,7 @@ function showError(message) {
 }
 
 async function init() {
+  wireModeAndSoloListeners();
   const { data: { session } } = await supabaseClient.auth.getSession();
 
   if (session) {
@@ -58,13 +67,55 @@ async function init() {
 
     if (participant) {
       me = participant;
-      await startQuizFlow();
+      await afterAuthenticated();
       return;
     }
   }
 
   showView('register');
   document.getElementById('register-form').addEventListener('submit', onRegister);
+}
+
+// Nach Login/Registrierung: laeuft bereits eine unbeendete Solo-Runde (z.B. Reload
+// mitten im Lauf), dort fortsetzen statt sie stillschweigend zu verlieren. Sonst
+// zur Modus-Auswahl.
+async function afterAuthenticated() {
+  const resumed = await tryResumeSoloSession();
+  if (resumed) return;
+  showModeSelect();
+}
+
+async function tryResumeSoloSession() {
+  const { data, error } = await supabaseClient
+    .from('solo_sessions')
+    .select('*')
+    .eq('participant_id', me.id)
+    .eq('status', 'running')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    logError('participant', error.message, { action: 'load_solo_session' });
+    return false;
+  }
+  if (!data) return false;
+
+  try {
+    await loadAllQuestions();
+  } catch (err) {
+    logError('participant', err.message ?? String(err), { action: 'load_questions_for_solo_resume' });
+    return false;
+  }
+
+  soloSession = data;
+  renderSoloQuestion();
+  return true;
+}
+
+function showModeSelect() {
+  document.getElementById('mode-select-name').textContent = `Angemeldet als ${me.display_name}`;
+  showView('mode-select');
 }
 
 async function onRegister(event) {
@@ -87,7 +138,7 @@ async function onRegister(event) {
     if (insertError) throw insertError;
 
     me = { id: userId, display_name: name };
-    await startQuizFlow();
+    await afterAuthenticated();
   } catch (err) {
     submitButton.disabled = false;
     const message = err.message ?? String(err);
@@ -340,6 +391,332 @@ async function submitResponse(questionId, payload) {
   }
 
   return true;
+}
+
+// --- Solo-Modus ---
+// Eigenstaendiger Ablauf ohne quiz_sessions/presenter_control: eigenes Tempo
+// (Antworten, sofort Ergebnis sehen, per "Weiter" selbst zur naechsten Frage),
+// kein Timer, kein Warten auf andere. Siehe solo-state.js fuer die getestete
+// Logik (Fragenauswahl, Auswertungs-Aggregation) und die Migration
+// 20260908120000_solo_mode.sql fuers Datenmodell/RLS/Scoring.
+
+function wireModeAndSoloListeners() {
+  document.getElementById('mode-select-team').addEventListener('click', () => startQuizFlow());
+  document.getElementById('mode-select-solo').addEventListener('click', () => startSoloSetup());
+  document.getElementById('solo-setup-form').addEventListener('submit', onStartSolo);
+  document.getElementById('solo-again-button').addEventListener('click', () => {
+    soloSession = null;
+    startSoloSetup();
+  });
+  document.getElementById('solo-back-button').addEventListener('click', () => {
+    soloSession = null;
+    showModeSelect();
+  });
+}
+
+async function loadAllQuestions() {
+  if (allQuestionsCache) return allQuestionsCache;
+  const { data, error } = await supabaseClient.from('questions').select('*');
+  if (error) throw error;
+  allQuestionsCache = data;
+  return allQuestionsCache;
+}
+
+async function startSoloSetup() {
+  try {
+    const questions = await loadAllQuestions();
+    const input = document.getElementById('solo-question-count');
+    input.max = String(questions.length);
+    input.value = String(Math.min(10, questions.length));
+    document.getElementById('solo-setup-hint').textContent = `${questions.length} Fragen im Katalog verfuegbar.`;
+    showView('solo-setup');
+  } catch (err) {
+    const message = err.message ?? String(err);
+    logError('participant', message, { action: 'load_questions_for_solo_setup' });
+    showToast(message);
+  }
+}
+
+async function onStartSolo(event) {
+  event.preventDefault();
+  const input = document.getElementById('solo-question-count');
+  const count = Number(input.value);
+  const submitButton = event.target.querySelector('button');
+  submitButton.disabled = true;
+
+  try {
+    const questions = await loadAllQuestions();
+    const picked = pickRandomQuestions(questions, count);
+    const { data, error } = await supabaseClient
+      .from('solo_sessions')
+      .insert({ participant_id: me.id, question_ids: picked.map((q) => q.id) })
+      .select()
+      .single();
+    if (error) throw error;
+
+    soloSession = data;
+    renderSoloQuestion();
+  } catch (err) {
+    const message = err.message ?? String(err);
+    logError('participant', message, { action: 'start_solo_session' });
+    showToast(message);
+  } finally {
+    submitButton.disabled = false;
+  }
+}
+
+function currentSoloQuestion() {
+  const id = soloSession.question_ids[soloSession.current_index];
+  return allQuestionsCache.find((q) => q.id === id);
+}
+
+function renderSoloQuestion() {
+  const question = currentSoloQuestion();
+  const total = soloSession.question_ids.length;
+
+  document.getElementById('solo-progress').textContent = `Frage ${soloSession.current_index + 1} von ${total}`;
+  document.getElementById('solo-question-prompt').textContent = question.prompt;
+  document.getElementById('solo-feedback').hidden = true;
+
+  const container = document.getElementById('solo-question-options');
+  container.innerHTML = '';
+
+  if (question.question_type === 'multiple_choice') {
+    for (const option of question.options) {
+      const button = document.createElement('button');
+      button.className = 'option-button';
+      button.textContent = option;
+      button.addEventListener('click', () => submitSoloAnswer(question, { selected_option: option }));
+      container.appendChild(button);
+    }
+  } else {
+    const form = document.createElement('form');
+    form.innerHTML = `
+      <input id="solo-guess-input" type="text" inputmode="decimal" placeholder="Deine Schaetzung" required>
+      <button type="submit">Absenden</button>
+    `;
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const raw = document.getElementById('solo-guess-input').value;
+      const value = parseGuessValue(raw);
+      if (value === null) {
+        showToast('Bitte eine gueltige Zahl eingeben.');
+        return;
+      }
+      submitSoloAnswer(question, { guess_value: value });
+    });
+    container.appendChild(form);
+  }
+
+  showView('solo-question');
+}
+
+async function submitSoloAnswer(question, payload) {
+  const container = document.getElementById('solo-question-options');
+  container.querySelectorAll('button, input').forEach((el) => (el.disabled = true));
+
+  try {
+    const { data: response, error } = await supabaseClient
+      .from('solo_responses')
+      .insert({
+        solo_session_id: soloSession.id,
+        participant_id: me.id,
+        question_id: question.id,
+        ...payload,
+      })
+      .select()
+      .single();
+    if (error) throw error;
+
+    // Erst nach dem eigenen Insert lesbar (Reveal-nach-eigener-Antwort-Policy,
+    // siehe Migration), deshalb erst jetzt und nicht schon beim Fragen-Rendern abfragen.
+    const { data: answer, error: answerError } = await supabaseClient
+      .from('question_answers')
+      .select('correct_option, correct_value')
+      .eq('question_id', question.id)
+      .single();
+    if (answerError) throw answerError;
+
+    showSoloFeedback(question, response, answer);
+  } catch (err) {
+    const message = err.message ?? String(err);
+    logError('participant', message, { action: 'submit_solo_response', question_id: question.id });
+    showToast(message);
+    container.querySelectorAll('button, input').forEach((el) => (el.disabled = false));
+  }
+}
+
+function showSoloFeedback(question, response, answer) {
+  const { yourAnswer, correctAnswer } = describeAnswer(question, response, answer);
+
+  const status = document.getElementById('solo-feedback-status');
+  status.textContent = response.is_correct ? 'Richtig!' : 'Leider falsch';
+  status.classList.toggle('status-badge--error', !response.is_correct);
+
+  document.getElementById('solo-feedback-detail').textContent =
+    question.question_type === 'multiple_choice'
+      ? `Richtige Antwort: ${correctAnswer}`
+      : `Deine Schaetzung: ${yourAnswer} · Richtiger Wert: ${correctAnswer}`;
+
+  const isLast = soloSession.current_index >= soloSession.question_ids.length - 1;
+  const nextButton = document.getElementById('solo-next-button');
+  nextButton.textContent = isLast ? 'Auswertung ansehen' : 'Weiter';
+  nextButton.onclick = isLast ? finishSoloSession : advanceSoloSession;
+
+  document.getElementById('solo-feedback').hidden = false;
+}
+
+async function advanceSoloSession() {
+  try {
+    const { data, error } = await supabaseClient
+      .from('solo_sessions')
+      .update({ current_index: soloSession.current_index + 1 })
+      .eq('id', soloSession.id)
+      .select()
+      .single();
+    if (error) throw error;
+
+    soloSession = data;
+    renderSoloQuestion();
+  } catch (err) {
+    const message = err.message ?? String(err);
+    logError('participant', message, { action: 'advance_solo_session' });
+    showToast(message);
+  }
+}
+
+async function finishSoloSession() {
+  try {
+    const { data, error } = await supabaseClient
+      .from('solo_sessions')
+      .update({ status: 'finished', finished_at: new Date().toISOString() })
+      .eq('id', soloSession.id)
+      .select()
+      .single();
+    if (error) throw error;
+
+    soloSession = data;
+    await renderSoloResult();
+  } catch (err) {
+    const message = err.message ?? String(err);
+    logError('participant', message, { action: 'finish_solo_session' });
+    showToast(message);
+  }
+}
+
+async function renderSoloResult() {
+  try {
+    const questionIds = soloSession.question_ids;
+    const [{ data: responses, error: responsesError }, { data: answers, error: answersError }] = await Promise.all([
+      supabaseClient.from('solo_responses').select('*').eq('solo_session_id', soloSession.id),
+      supabaseClient.from('question_answers').select('*').in('question_id', questionIds),
+    ]);
+    if (responsesError) throw responsesError;
+    if (answersError) throw answersError;
+
+    const questions = questionIds.map((id) => allQuestionsCache.find((q) => q.id === id));
+    const result = computeSoloResult({ questionIds, questions, responses, answers });
+
+    document.getElementById('solo-result-summary').textContent = `${result.totalPoints} von ${result.totalCount} Punkten`;
+    document.getElementById('solo-result-detail').textContent =
+      `${result.accuracyPct}% richtig beantwortet` +
+      (result.avgLatencyMs != null ? ` · im Schnitt ${(result.avgLatencyMs / 1000).toFixed(1)}s pro Frage` : '');
+
+    showView('solo-result');
+    renderSoloResultList(result.rows);
+    scheduleSoloChartRender(result.rows);
+  } catch (err) {
+    const message = err.message ?? String(err);
+    logError('participant', message, { action: 'load_solo_result' });
+    showToast(message);
+  }
+}
+
+// Chart.js (responsive:true) misst beim Erzeugen die reale Groesse des
+// Elternknotens (.solo-chart-wrap); direkt nach showView() hat der Browser das
+// Layout nach dem Entfernen von [hidden] manchmal noch nicht fertig berechnet,
+// der Chart bekaeme dann Breite 0 und bliebe unsichtbar (per Browser-Test
+// gefunden). Gleiches Drei-Stufen-Netz wie measureAndDrawRing/startTimerRing
+// weiter oben: sofort messen, zwei rAF abwarten, ResizeObserver als letztes
+// Netz fuer den seltenen Fall, dass selbst das noch zu frueh ist.
+function scheduleSoloChartRender(rows) {
+  const wrap = document.querySelector('.solo-chart-wrap');
+  const immediate = wrap.getBoundingClientRect();
+  if (immediate.width > 0 && immediate.height > 0) {
+    renderSoloChart(rows);
+    return;
+  }
+
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      const size = wrap.getBoundingClientRect();
+      if (size.width > 0 && size.height > 0) {
+        renderSoloChart(rows);
+        return;
+      }
+      const observer = new ResizeObserver((entries) => {
+        const { width, height } = entries[0].contentRect;
+        if (width > 0 && height > 0) {
+          observer.disconnect();
+          renderSoloChart(rows);
+        }
+      });
+      observer.observe(wrap);
+    });
+  });
+}
+
+// Balkendiagramm statt Kreisdiagramm (Projektkonvention, siehe Dashboard),
+// fester Hoehen-Wrapper (.solo-chart-wrap) gegen den bekannten Chart.js-
+// Resize-Feedback-Loop bei responsive:true + maintainAspectRatio:false.
+function renderSoloChart(rows) {
+  const ctx = document.getElementById('solo-result-chart').getContext('2d');
+  const labels = rows.map((_, i) => `F${i + 1}`);
+  const data = rows.map((r) => r.pointsAwarded);
+  const colors = rows.map((r) => (r.isCorrect ? '#22c55e' : '#ef4444'));
+
+  if (soloResultChart) {
+    soloResultChart.data.labels = labels;
+    soloResultChart.data.datasets[0].data = data;
+    soloResultChart.data.datasets[0].backgroundColor = colors;
+    soloResultChart.update();
+    return;
+  }
+
+  soloResultChart = new Chart(ctx, {
+    type: 'bar',
+    data: { labels, datasets: [{ data, backgroundColor: colors, borderRadius: 8, maxBarThickness: 40 }] },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 400 },
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#94a3b8' }, grid: { display: false } },
+        y: { ticks: { color: '#94a3b8', precision: 0 }, beginAtZero: true, grid: { color: 'rgba(148,163,184,0.08)' } },
+      },
+    },
+  });
+}
+
+function renderSoloResultList(rows) {
+  const container = document.getElementById('solo-result-list');
+  container.innerHTML = '';
+  rows.forEach((row, index) => {
+    const item = document.createElement('div');
+    item.className = `solo-result-row ${row.isCorrect ? 'solo-result-row--correct' : 'solo-result-row--incorrect'}`;
+
+    const prompt = document.createElement('p');
+    prompt.className = 'solo-result-row-prompt';
+    prompt.textContent = `${index + 1}. ${row.question?.prompt ?? '?'}`;
+
+    const answers = document.createElement('p');
+    answers.className = 'solo-result-row-answers';
+    answers.textContent = `Deine Antwort: ${row.yourAnswer ?? '–'} · Richtig: ${row.correctAnswer ?? '–'}`;
+
+    item.append(prompt, answers);
+    container.appendChild(item);
+  });
 }
 
 showView('loading');

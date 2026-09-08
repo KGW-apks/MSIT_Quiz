@@ -170,6 +170,93 @@ button:disabled {
   display: none;
 }
 
+.mode-select-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mode-button {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+  text-align: left;
+  min-height: 72px;
+}
+
+.mode-button-title {
+  font-size: 1.15rem;
+}
+
+.mode-button-subtitle {
+  font-size: 0.85rem;
+  font-weight: 400;
+  opacity: 0.8;
+}
+
+.solo-feedback {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+/* Chart.js braucht bei responsive:true + maintainAspectRatio:false einen
+   Elternknoten mit FESTER Hoehe, sonst haengt die Canvas-Hoehe rekursiv von
+   ihrem eigenen Grid-Item ab -- derselbe Resize-Feedback-Loop, der im
+   Dashboard schon einmal einen Tab lahmgelegt hat (siehe .leaderboard-chart-wrap
+   dort), deshalb hier von vornherein mit fester Hoehe. */
+.solo-chart-wrap {
+  position: relative;
+  height: 220px;
+}
+
+.solo-result-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.solo-result-row {
+  background: var(--surface);
+  border-radius: var(--radius);
+  border-left: 4px solid transparent;
+  padding: 10px 12px;
+  font-size: 0.9rem;
+}
+
+.solo-result-row--correct {
+  border-left-color: var(--accent);
+}
+
+.solo-result-row--incorrect {
+  border-left-color: var(--error);
+}
+
+.solo-result-row-prompt {
+  margin: 0 0 4px;
+}
+
+.solo-result-row-answers {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.button-link {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 10px;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
 .toast {
   position: fixed;
   left: 16px;

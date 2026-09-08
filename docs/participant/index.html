@@ -23,6 +23,53 @@
       </form>
     </section>
 
+    <section id="view-mode-select" class="view" hidden>
+      <h1>Wie möchtest du spielen?</h1>
+      <p id="mode-select-name" class="muted"></p>
+      <div class="mode-select-buttons">
+        <button id="mode-select-solo" type="button" class="mode-button">
+          <span class="mode-button-title">Solo</span>
+          <span class="mode-button-subtitle">Eigenes Tempo, eigene Auswertung</span>
+        </button>
+        <button id="mode-select-team" type="button" class="mode-button">
+          <span class="mode-button-title">Team</span>
+          <span class="mode-button-subtitle">Gemeinsame Live-Runde</span>
+        </button>
+      </div>
+    </section>
+
+    <section id="view-solo-setup" class="view" hidden>
+      <h1>Solo-Runde</h1>
+      <p id="solo-setup-hint" class="muted"></p>
+      <form id="solo-setup-form">
+        <input id="solo-question-count" type="number" inputmode="numeric" min="1" step="1" placeholder="Anzahl Fragen" required>
+        <button type="submit">Los</button>
+      </form>
+    </section>
+
+    <section id="view-solo-question" class="view" hidden>
+      <p id="solo-progress" class="prompt-small"></p>
+      <p id="solo-question-prompt" class="prompt-small"></p>
+      <div id="solo-question-options"></div>
+      <div id="solo-feedback" class="solo-feedback" hidden>
+        <p id="solo-feedback-status" class="status-badge"></p>
+        <p id="solo-feedback-detail" class="muted"></p>
+        <button id="solo-next-button" type="button"></button>
+      </div>
+    </section>
+
+    <section id="view-solo-result" class="view" hidden>
+      <h1>Deine Auswertung</h1>
+      <p id="solo-result-summary" class="status-badge"></p>
+      <p id="solo-result-detail" class="muted"></p>
+      <div class="solo-chart-wrap">
+        <canvas id="solo-result-chart"></canvas>
+      </div>
+      <div id="solo-result-list" class="solo-result-list"></div>
+      <button id="solo-again-button" type="button">Nochmal solo</button>
+      <button id="solo-back-button" type="button" class="button-link">Zurück zur Auswahl</button>
+    </section>
+
     <section id="view-lobby" class="view" hidden>
       <p class="status-badge">Warte auf den Start...</p>
       <p id="lobby-name" class="muted"></p>
@@ -61,6 +108,7 @@
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script type="module" src="./app.js"></script>
 </body>
 </html>
