@@ -114,8 +114,8 @@ begin
 
   elsif q.question_type = 'estimation' then
     if answer.correct_value = 0 then
-      -- Randfall aus der Projektnotiz (Division durch 0 bei relativer Abweichung):
-      -- nur eine exakte Schaetzung von 0 zaehlt, gewaehlter Default, mit Knut noch abzustimmen.
+      -- Randfall (Division durch 0 bei relativer Abweichung): nur eine exakte
+      -- Schaetzung von 0 zaehlt als richtig, ein bewusst gewaehlter Default.
       new.is_correct := (new.guess_value = 0);
       new.points_awarded := case when new.guess_value = 0 then answer.points else 0 end;
     else

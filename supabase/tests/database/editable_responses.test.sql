@@ -66,9 +66,9 @@ select extensions.is(
   'Korrigierte Antwort (B, waehrend die Frage offen ist) -> neu berechnet auf volle Punktzahl'
 );
 
--- 4b: change_count (Migration track_answer_changes, Feature-Wunsch 2026-09-06
--- "wer hat sich am meisten umentschieden"): erste Antwort zaehlt nicht als
--- Wechsel, die Korrektur auf B ist der erste echte Wechsel -> 1.
+-- 4b: change_count (Migration track_answer_changes, Grundlage fuer "wer hat
+-- sich am meisten umentschieden"): erste Antwort zaehlt nicht als Wechsel,
+-- die Korrektur auf B ist der erste echte Wechsel -> 1.
 select extensions.is(
   (select change_count from public.responses where participant_id = 'eeeeeeee-1111-0000-0000-000000000001' and question_id = 'eeeeeeee-0000-0000-0000-000000000002'),
   1,

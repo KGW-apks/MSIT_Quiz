@@ -301,7 +301,7 @@ select extensions.is(
 reset role;
 
 -- 17-19: Gleichstand -- zwei Teilnehmer gleich weit weg bekommen BEIDE den
--- Punkt, kein Losentscheid (Knuts Vorgabe 2026-09-07).
+-- Punkt, kein Losentscheid.
 
 update public.quiz_sessions
 set current_question_id = 'aaaaaaaa-0000-0000-0000-000000000004', status = 'open', round_question_ids = null

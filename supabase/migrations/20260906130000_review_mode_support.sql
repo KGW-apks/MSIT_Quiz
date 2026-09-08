@@ -1,4 +1,4 @@
--- Traegt drei von Knuts Live-Test-Befunden (2026-09-06) nach:
+-- Traegt drei Live-Test-Befunde nach:
 --
 -- 1. Leaderboard soll rundenbasiert sein, nicht ueber die gesamte Historie
 --    summieren. Ein einfacher Filter auf round_question_ids reicht aber nicht:
@@ -8,8 +8,8 @@
 --    wenn in der neuen Runde gar nicht neu geantwortet wurde. Deshalb ein neuer
 --    Zeitstempel round_started_at, gestempelt bei start_round, als Cutoff.
 --
--- 2. Review-Modus (Feature-Wunsch, siehe Projektnotiz "Offene Punkte"): nach
---    "Quiz beenden" soll Knut im Dashboard durch alle Fragen der abgeschlossenen
+-- 2. Review-Modus (siehe Projektnotiz "Offene Punkte"): nach "Quiz beenden"
+--    soll der Presenter im Dashboard durch alle Fragen der abgeschlossenen
 --    Runde blaettern und die Verteilung sehen koennen, nicht nur fuer die
 --    zuletzt gestellte. Die bestehende Policy question_answers_select_after_close
 --    oeffnet eine Loesung nur, wenn sie current_question_id ist -- fuer frueher

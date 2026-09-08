@@ -158,7 +158,7 @@ async function renderForSession(quizSession) {
     renderQuestion(state.question, state.myResponse);
     // showView() MUSS vor startTimerRing() laufen: der Ring liest die reale
     // Groesse von #timer-ring per getBoundingClientRect(), die ist 0x0, solange
-    // die Section noch [hidden] ist (Bug 2026-09-04, per Browser-Test gefunden).
+    // die Section noch [hidden] ist.
     showView(state.view);
     // Ring nur bei einer tatsaechlich NEUEN Frage (neu)starten, nicht bei jedem
     // Resubmit-Re-Render derselben Frage (siehe handleOptionClick/submitResponse
@@ -264,11 +264,10 @@ function startTimerRing(deadline) {
   measureAndDrawRing(wrap, svg, rect, deadline, token);
 }
 
-// getBoundingClientRect() direkt nach showView() lieferte auf einem echten
-// Handy vereinzelt 0x0 (Layout/Web-Fonts noch nicht fertig, im lokalen
-// Desktop-Browser-Test nicht reproduzierbar), wodurch der Ring fuer die ganze
-// Frage unsichtbar blieb (Bug vom 2026-09-06, kein Retry vorhanden). Fix in
-// drei Stufen, jede haert die vorherige nur ab, kein Dauer-Polling:
+// getBoundingClientRect() direkt nach showView() liefert auf manchen Geraeten
+// vereinzelt 0x0 (Layout/Web-Fonts noch nicht fertig), wodurch der Ring fuer
+// die ganze Frage unsichtbar bliebe. Fix in drei Stufen, jede haert die
+// vorherige nur ab, kein Dauer-Polling:
 // 1) sofort messen, 2) nach zwei rAF nochmal (Layout ist dann garantiert
 // fertig gemalt), 3) ResizeObserver als letztes Netz fuer den seltenen Fall,
 // dass selbst das noch zu frueh ist (z.B. verzoegertes Font-Nachladen).

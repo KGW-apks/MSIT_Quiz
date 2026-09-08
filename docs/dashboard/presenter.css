@@ -1,8 +1,8 @@
-/* Presenter-Steuerung als Tab im Dashboard (Knuts Entscheidung 2026-09-04,
-   vorher eine eigene Seite unter docs/presenter/). Laeuft auf Knuts eigenem
-   Desktop-Bildschirm waehrend der Praesentation, deshalb wie das Dashboard
-   ueber die mobile-first Basis aus shared/styles.css hinaus verbreitert
-   (siehe #app.dashboard-app in dashboard.css, gilt fuer beide Tabs). */
+/* Presenter-Steuerung als Tab im Dashboard (vorher eine eigene Seite unter
+   docs/presenter/). Laeuft auf dem Desktop-Bildschirm des Presenters waehrend
+   der Praesentation, deshalb wie das Dashboard ueber die mobile-first Basis
+   aus shared/styles.css hinaus verbreitert (siehe #app.dashboard-app in
+   dashboard.css, gilt fuer beide Tabs). */
 
 .tab-nav {
   display: flex;

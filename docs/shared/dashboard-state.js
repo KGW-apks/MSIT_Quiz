@@ -108,7 +108,7 @@ export function computeQuestionProgress({ session, roundQuestionIds }) {
 // derselben question_id die alte Antwortzeile aus einer frueheren Runde stehen
 // laesst (responses laeuft per Upsert auf participant_id+question_id) -- ohne
 // den Zeit-Cutoff wuerde die als in dieser Runde beantwortet mitzaehlen, auch
-// wenn hier gar nicht neu geantwortet wurde. Bug gefunden von Knut, 2026-09-06.
+// wenn hier gar nicht neu geantwortet wurde.
 export function filterToRound(responses, { roundQuestionIds, roundStartedAt }) {
   if (!roundQuestionIds) return responses;
   const idSet = new Set(roundQuestionIds);
@@ -124,7 +124,7 @@ export function filterToRound(responses, { roundQuestionIds, roundStartedAt }) {
 // der laufenden Frage: Multiple-Choice-Antworten werden sofort bei Insert gewertet
 // (score_response()-Trigger), ohne diesen Filter waere der Punktestand also live
 // mitgelaufen, waehrend die Frage noch offen ist -- auf dem projizierten Dashboard
-// fuer alle sichtbar, ein Schummel-Vektor (Knuts Fund 2026-09-07). Nur die AKTUELL
+// fuer alle sichtbar, ein Schummel-Vektor. Nur die AKTUELL
 // offene Frage wird ausgeblendet, bereits geschlossene Fragen derselben Runde
 // zaehlen normal weiter.
 export function computeLeaderboard({ participants, responses, roundQuestionIds = null, roundStartedAt = null, session = null }) {
@@ -146,13 +146,12 @@ export function computeLeaderboard({ participants, responses, roundQuestionIds =
 
 // Fuer die Abschluss-Auswertung, jeweils nur ueber die AKTUELLE Runde (gleicher
 // Rundenfilter wie beim Leaderboard, gleicher Grund: sonst zaehlt eine
-// wiederholte Frage die alte Antwort aus einer frueheren Runde mit). Nebenfund
-// von Knut, 2026-09-06.
+// wiederholte Frage die alte Antwort aus einer frueheren Runde mit).
 //
 // "Schwerste Frage" bewusst umbenannt zu mostMissedQuestion/"am haeufigsten
-// falsch beantwortet": Knuts Einwand war, dass "schwerste Frage" Schwierigkeit
-// als objektive Eigenschaft der Frage suggeriert, obwohl es nur eine simple
-// Fehlerzaehlung ueber genau diese Teilnehmer in genau dieser Runde ist.
+// falsch beantwortet": "schwerste Frage" suggeriert Schwierigkeit als objektive
+// Eigenschaft der Frage, obwohl es nur eine simple Fehlerzaehlung ueber genau
+// diese Teilnehmer in genau dieser Runde ist.
 export function computeClosingStats({ participants, responses, questions, roundQuestionIds = null, roundStartedAt = null }) {
   const roundResponses = filterToRound(responses, { roundQuestionIds, roundStartedAt });
   let fastest = null;
@@ -173,8 +172,8 @@ export function computeClosingStats({ participants, responses, questions, roundQ
     if (!mostMissed || misses > mostMissed.misses) mostMissed = { questionId, misses };
   }
 
-  // Wer hat waehrend der Runde am meisten die Antwort gewechselt (Feature-
-  // Wunsch 2026-09-06). change_count kommt serverseitig vom Scoring-Trigger
+  // Wer hat waehrend der Runde am meisten die Antwort gewechselt.
+  // change_count kommt serverseitig vom Scoring-Trigger
   // (siehe Migration track_answer_changes), zaehlt schon korrekt auf 0 zurueck,
   // wenn eine Frage in dieser Runde frisch (wieder-)geoeffnet wurde -- kein
   // zusaetzlicher Rundenbezug hier noetig, roundResponses filtert nur die

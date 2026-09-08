@@ -9,7 +9,7 @@ const questions = [
 ];
 
 // Erzeugt n Dummy-Teilnehmer, wenn ein Test nur die Anzahl braucht, nicht
-// die Namen selbst (participantCount wird seit 2026-09-07 aus der uebergebenen
+// die Namen selbst (participantCount wird aus der uebergebenen
 // participants-Liste abgeleitet statt separat durchgereicht).
 function makeParticipants(n) {
   return Array.from({ length: n }, (_, i) => ({ id: `p${i}`, display_name: `Teilnehmer ${i}` }));

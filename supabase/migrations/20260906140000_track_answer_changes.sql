@@ -1,5 +1,5 @@
--- Feature-Wunsch von Knut (2026-09-06): Abschluss-Auswertung soll zeigen, wer
--- sich waehrend des Quiz am meisten umentschieden hat (Antwort mehrfach
+-- Die Abschluss-Auswertung soll zeigen, wer sich waehrend des Quiz am meisten
+-- umentschieden hat (Antwort mehrfach
 -- gewechselt, seit Migration editable_responses_and_default_timer erlaubt,
 -- solange die Frage offen ist). Dafuer ein neuer Zaehler change_count auf
 -- responses, vom Scoring-Trigger mitgefuehrt statt vom Client gesetzt (gleiche

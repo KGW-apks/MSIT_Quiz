@@ -7,18 +7,18 @@
 // serverseitig neu gestempelt (Trigger stamp_question_opened_at), ist also der
 // zuverlaessige Cutoff: eine Antwort von VOR diesem Zeitpunkt gehoert zu einer
 // frueheren Runde und zaehlt fuer die aktuelle Anzeige als nicht vorhanden.
-// Bug gefunden von Knut am 2026-09-06: alte Antwort wurde bei Wiederholung direkt
-// vorausgewaehlt/eingeloggt statt "frisch" zu starten.
+// Ohne diesen Cutoff wuerde bei einer Wiederholung die alte Antwort direkt
+// vorausgewaehlt/eingeloggt, statt "frisch" zu starten.
 function isFreshResponse(myResponse, questionOpenedAt) {
   if (!myResponse) return false;
   if (!questionOpenedAt) return true;
   return new Date(myResponse.answered_at).getTime() >= new Date(questionOpenedAt).getTime();
 }
 
-// Seit 2026-09-04: solange die Frage offen ist, darf die Antwort beliebig oft
-// geaendert werden (Knuts Vorgabe). "waiting" (fest eingereicht, keine Aenderung
-// mehr moeglich) gibt es deshalb nur noch NACH dem Schliessen, nicht mehr schon
-// waehrend status === 'open'. myResponse wird im question-view mitgegeben, damit
+// Solange die Frage offen ist, darf die Antwort beliebig oft geaendert werden.
+// "waiting" (fest eingereicht, keine Aenderung mehr moeglich) gibt es deshalb
+// nur noch NACH dem Schliessen, nicht mehr schon waehrend status === 'open'.
+// myResponse wird im question-view mitgegeben, damit
 // die UI die zuletzt gespeicherte Auswahl vorbefuellen/markieren kann.
 export function deriveViewState({ status, currentQuestion, myResponse, questionOpenedAt }) {
   if (status === 'finished') {

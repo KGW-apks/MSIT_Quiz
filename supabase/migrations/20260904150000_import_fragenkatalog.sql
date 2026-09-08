@@ -7,7 +7,7 @@
 --
 -- position = die stabile Katalog-ID der jeweiligen Frage (Luecken durch bereits
 -- gestrichene Fragen sind laut Katalog-Notiz gewollt), nicht neu durchnummeriert,
--- damit Knuts Verweise auf einzelne Fragen (z.B. "Frage 33") mit position in der
+-- damit Verweise auf einzelne Fragen (z.B. "Frage 33") mit position in der
 -- DB uebereinstimmen.
 --
 -- tier_primary/tier_secondary neu (siehe "Hinweise fuer Supabase-Import" im Katalog).
@@ -253,5 +253,5 @@ insert into public.question_answers (question_id, correct_option, correct_value,
 -- Provisorische Zahlenwerte fuer zwei Schaetzfragen, deren Katalogtext keinen
 -- exakten Punktwert liefert (Bereichs- bzw. Mindestangabe statt einer Zahl):
 -- Frage 22 ("ueber 50 %", hier 50 als unterer Rand angesetzt) und Frage 154
--- ("ca. 480-500x teurer", hier der Mittelwert 490). Vor dem Live-Event mit Knut
--- gegenpruefen und ggf. per UPDATE auf question_answers korrigieren.
+-- ("ca. 480-500x teurer", hier der Mittelwert 490). Korrigiert auf die
+-- tatsaechlich im Kurs genannten Werte in Migration fix_estimation_values.

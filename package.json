@@ -1,5 +1,6 @@
 {
   "name": "msit-quiz",
+  "description": "Live-Quiz-Tool auf Supabase fuer Praesentationen: Teilnehmer-App, Presenter-Dashboard mit Live-Diagrammen und Leaderboard.",
   "private": true,
   "type": "module",
   "scripts": {

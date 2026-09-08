@@ -1,5 +1,5 @@
--- Knuts Vorgabe 2026-09-07: Fragen sollen 1 Punkt geben statt 100, damit die
--- Zahlen (Leaderboard, Diagramme) im Kopf ueberschaubar bleiben. Alle Fragen
+-- Fragen sollen 1 Punkt geben statt 100, damit die Zahlen (Leaderboard,
+-- Diagramme) im Kopf ueberschaubar bleiben. Alle Fragen
 -- im Katalog stehen bisher einheitlich auf 100 (siehe import_fragenkatalog),
 -- deshalb reicht ein pauschales Zuruecksetzen auf 1 statt einer differenzierten
 -- Migration je Frage.

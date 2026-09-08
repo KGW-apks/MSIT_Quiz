@@ -1,15 +1,15 @@
 // Reine Entscheidungslogik fuers Presenter-View, ohne DOM/Supabase-Zugriff.
 //
-// Seit 2026-09-04 zeigt der Presenter nicht mehr alle Runden-Fragen als volle
-// Tabelle mit Prompt-Text an (Knuts Vorgabe: Mitschueler sehen per Screenshare
-// mit, wie er startet, kuenftige Fragen sollen vorher nicht lesbar sein).
-// Statt "rows" gibt es jetzt "options" (nur Nummer + Status, fuers Dropdown)
-// und "current" (die aktuell offene/geschlossene Frage inkl. vollem Prompt,
-// der ist sicher zu zeigen, das Publikum sieht ihn zeitgleich im Dashboard).
+// Der Presenter zeigt Runden-Fragen nicht als volle Tabelle mit Prompt-Text an:
+// Mitschueler sehen per Screenshare mit, wie er startet, kuenftige Fragen sollen
+// vorher nicht lesbar sein. Statt "rows" gibt es deshalb "options" (nur Nummer
+// + Status, fuers Dropdown) und "current" (die aktuell offene/geschlossene
+// Frage inkl. vollem Prompt, der ist sicher zu zeigen, das Publikum sieht ihn
+// zeitgleich im Dashboard).
 //
-// Seit 2026-09-07 zusaetzlich "participants": alphabetisch sortierte Liste
-// {id, name} fuers Entfernen einzelner Teilnehmer (siehe app.js:
-// removeParticipant / Migration presenter_remove_participant).
+// Zusaetzlich "participants": alphabetisch sortierte Liste {id, name} fuers
+// Entfernen einzelner Teilnehmer (siehe app.js: removeParticipant / Migration
+// presenter_remove_participant).
 
 export function buildPresenterView({ session, questions, responses, participants }) {
   const status = session?.status ?? 'lobby';

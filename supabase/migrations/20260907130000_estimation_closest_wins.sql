@@ -1,5 +1,5 @@
--- Schaetzfragen-Scoring umgestellt (Knuts Vorgabe 2026-09-07): nicht mehr
--- eine prozentuale Teilpunkte-Formel (die nach der Punkte-Umstellung auf 1
+-- Schaetzfragen-Scoring umgestellt: nicht mehr eine prozentuale
+-- Teilpunkte-Formel (die nach der Punkte-Umstellung auf 1
 -- ohnehin nur noch 0/1 unterscheiden konnte, siehe Migration
 -- points_scale_to_one), sondern "wer am naechsten dran ist, bekommt den
 -- Punkt; bei Gleichstand bekommen alle Punkte, die den Abstand halten".

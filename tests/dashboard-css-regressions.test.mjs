@@ -6,11 +6,11 @@ import path from 'node:path';
 
 // Statischer CSS-Regressionstest, kein Browser noetig (das Projekt hat bewusst
 // keine Playwright/Puppeteer-Abhaengigkeit, siehe Projektnotiz "Live-Quiz-Tool").
-// Faengt genau die Bug-Klasse ab, die am 2026-09-07 drei Live-Meldungen brauchte,
-// bis sie gefunden war: ein kleiner, fest bemessener Icon-Button (z.B. das
-// Drilldown-Schliessen-X) erbt sonst den globalen `button { padding: 16px }`-
-// Reset aus shared/styles.css. Auf einer 32x32px-Box laesst das keinen Platz
-// fuer den Inhalt, der Inhalt (Text-Glyph oder SVG) rutscht dadurch sichtbar
+// Faengt eine Regel-Klasse ab, die sich sonst leicht unbemerkt einschleicht:
+// ein kleiner, fest bemessener Icon-Button (z.B. das Drilldown-Schliessen-X)
+// erbt ohne eigenes padding den globalen `button { padding: 16px }`-Reset aus
+// shared/styles.css. Auf einer 32x32px-Box laesst das keinen Platz fuer den
+// Inhalt, der Inhalt (Text-Glyph oder SVG) rutscht dadurch sichtbar
 // asymmetrisch aus der Mitte, ohne dass CSS dabei irgendeinen Fehler wirft.
 
 const dashboardCssPath = path.join(
@@ -32,6 +32,6 @@ test('.button-icon deklariert eigenes padding (ueberschreibt den globalen button
     /padding\s*:/,
     '.button-icon muss ein eigenes padding setzen, sonst erbt es den globalen `button { padding: 16px }`-Reset ' +
       'aus shared/styles.css und der Inhalt (z.B. das Schliessen-X) rutscht auf einer 32x32px-Box asymmetrisch ' +
-      'aus der Mitte (Bug vom 2026-09-07, drei Live-Meldungen bis zur Diagnose)'
+      'aus der Mitte'
   );
 });

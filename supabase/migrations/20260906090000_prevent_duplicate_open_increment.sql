@@ -1,13 +1,12 @@
--- Bug-Fix (gefunden beim gezielten Doppelklick-Race-Test, siehe Auftrag
--- "intensiv nach weiteren Bugs suchen"): 'open' auf einer Frage, die bereits
--- die aktuelle offene Frage ist (Presenter klickt "Oeffnen" zweimal schnell
--- hintereinander, oder ein Netzwerk-Retry schickt denselben RPC-Call erneut),
--- zaehlte times_asked bei JEDEM Aufruf um 1 hoch, nicht nur beim tatsaechlichen
--- Wechsel auf eine neue Frage. Reproduziert lokal: zwei identische
--- presenter_control('open', <gleiche id>, ...)-Aufrufe hintereinander liessen
--- times_asked von 0 auf 2 springen statt auf 1. Das verzerrt start_round's
--- "bevorzugt am wenigsten gestellte Frage"-Auswahl auf Dauer. Guard: ist die
--- Zielfrage schon die aktuell offene, ist 'open' ein reines No-Op.
+-- 'open' auf einer Frage, die bereits die aktuelle offene Frage ist (Presenter
+-- klickt "Oeffnen" zweimal schnell hintereinander, oder ein Netzwerk-Retry
+-- schickt denselben RPC-Call erneut), zaehlte times_asked bei JEDEM Aufruf um
+-- 1 hoch, nicht nur beim tatsaechlichen Wechsel auf eine neue Frage: zwei
+-- identische presenter_control('open', <gleiche id>, ...)-Aufrufe hinter-
+-- einander liessen times_asked von 0 auf 2 springen statt auf 1. Das verzerrt
+-- start_round's "bevorzugt am wenigsten gestellte Frage"-Auswahl auf Dauer.
+-- Guard: ist die Zielfrage schon die aktuell offene, ist 'open' ein reines
+-- No-Op.
 create or replace function public.presenter_control(
   action text,
   target_question_id uuid,

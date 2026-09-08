@@ -1,7 +1,7 @@
--- Zwei zusammenhaengende Aenderungen fuers automatische Timer-getriebene
--- Rundenspiel (Knuts Vorgabe 2026-09-04): jede Frage bekommt standardmaessig
--- 30 Sekunden, und Teilnehmer duerfen ihre Antwort aendern, solange die Frage
--- noch offen ist (nicht mehr nur einmal einsenden).
+-- Zwei zusammenhaengende Aenderungen fuers automatische, Timer-getriebene
+-- Rundenspiel: jede Frage bekommt standardmaessig 30 Sekunden, und
+-- Teilnehmer duerfen ihre Antwort aendern, solange die Frage noch offen ist
+-- (nicht mehr nur einmal einsenden).
 
 -- 1) Zeitlimit: bisher optional und leer (nur per SQL-Editor gesetzt). Katalog
 -- bekommt jetzt einheitlich 30s, neue Fragen ab jetzt per Default ebenfalls.

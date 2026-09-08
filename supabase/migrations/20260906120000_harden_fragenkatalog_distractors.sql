@@ -2,7 +2,7 @@
 -- Ausschlussverfahren ohne Kurswissen erkennbare Falschantworten) durch
 -- plausible, thematisch aus dem MSIT-Kurs stammende Distraktoren.
 --
--- Hintergrund: Knut fand den Katalog "größtenteils viel zu einfach", weil bei
+-- Hintergrund: der Katalog war "größtenteils viel zu einfach", weil bei
 -- vielen Fragen nur eine Antwort logisch wirkte. Siehe Vault-Notiz
 -- "Fragenkatalog" im Live-Quiz-Tool-Projekt, Abschnitt "Entstehung &
 -- Korrektur-Log", Punkt 8, fuer die vollstaendige Vorher/Nachher-Liste samt
@@ -13,7 +13,7 @@
 -- wortwoertlich unveraendert, deshalb ist an `question_answers` nichts zu tun.
 -- Betrifft 39 der 115 importierten Fragen (Position 161 ist im Katalog zwar
 -- ebenfalls ueberarbeitet, aber als bekannte Dublette nie importiert worden).
--- Frage 28 wurde nach Knuts Review (2026-09-06) wieder auf den Originaltext
+-- Frage 28 wurde nach einer Review wieder auf den Originaltext
 -- zurueckgesetzt, siehe Fragenkatalog.md Korrektur-Log Punkt 8: der neue
 -- Distraktor ("Wissensdatenbank, Kontextfenster, Gedaechtnis") war zu nah am
 -- echten Kursinhalt aus Frage 97 und machte die Frage uneindeutig.

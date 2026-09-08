@@ -3,8 +3,7 @@
 -- solche, die insgesamt noch nie drankamen (times_asked), rein zufaellig
 -- unter den jeweils gleich oft gestellten. Repeats erst, wenn alle einmal dran
 -- waren. Presenter wird ausserdem ein Tab im Dashboard statt einer eigenen
--- Seite (Knuts Entscheidung 2026-09-04), Schreibrechte bleiben unveraendert
--- exklusiv bei presenter_control().
+-- Seite, Schreibrechte bleiben unveraendert exklusiv bei presenter_control().
 
 alter table public.questions
   add column times_asked integer not null default 0;

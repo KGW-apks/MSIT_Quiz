@@ -3,11 +3,11 @@
 // Diese Datei selbst ist reine UI-Verdrahtung ohne eigene Entscheidungslogik
 // und bewusst nicht durch eine automatisierte Test-Suite abgedeckt.
 //
-// Seit 2026-09-04 vereint diese Seite Dashboard UND Presenter als zwei Tabs
-// (vorher zwei getrennte Seiten, docs/presenter/ leitet nur noch hierher um).
-// Beide Tabs teilen sich einen einzigen Datenabruf und dieselben drei
-// Realtime-Subscriptions (quiz_sessions/responses/participants), render()
-// aktualisiert deshalb immer beide, unabhaengig davon welcher Tab sichtbar ist.
+// Dashboard und Presenter sind zwei Tabs derselben Seite (docs/presenter/
+// leitet nur noch hierher um). Beide Tabs teilen sich einen einzigen
+// Datenabruf und dieselben drei Realtime-Subscriptions (quiz_sessions/
+// responses/participants), render() aktualisiert deshalb immer beide,
+// unabhaengig davon welcher Tab sichtbar ist.
 
 import { supabaseClient } from '../shared/supabase-client.js';
 import { computeAutoCloseAt, shouldAutoClose } from '../shared/quiz-timer.js';
@@ -23,8 +23,8 @@ import {
   filterToRound,
 } from '../shared/dashboard-state.js';
 
-// 'dashboard' als source deckt beide Tabs ab (Presenter ist seit 2026-09-04 kein
-// eigener Prozess mehr, siehe Kommentar oben); errorLogs.context.tab unterscheidet
+// 'dashboard' als source deckt beide Tabs ab (Presenter ist kein eigener
+// Prozess mehr, siehe Kommentar oben); errorLogs.context.tab unterscheidet
 // bei Bedarf, aus welchem Tab heraus der Fehler ausgeloest wurde.
 installGlobalErrorHandlers('dashboard');
 
@@ -385,9 +385,9 @@ function renderQuestionResult(question) {
 }
 
 // Multiple-Choice-Optionen sind oft ganze Saetze (siehe Fragenkatalog), Chart.js
-// rotiert/ueberlappt lange einzeilige X-Achsen-Labels dann unlesbar (Bug
-// 2026-09-04, live beim Testen gefunden). Fix: Labels als Zeilen-Array statt
-// einzelner String, Chart.js rendert ein Array automatisch mehrzeilig.
+// rotiert/ueberlappt lange einzeilige X-Achsen-Labels sonst unlesbar. Fix:
+// Labels als Zeilen-Array statt einzelner String, Chart.js rendert ein Array
+// automatisch mehrzeilig.
 function wrapChartLabel(label, maxCharsPerLine = 18) {
   const words = String(label).split(' ');
   const lines = [];
@@ -588,7 +588,7 @@ function renderLeaderboardChart(canvasEl, leaderboard, { instance, instanceSette
   instance.update();
 }
 
-// --- Review-Modus (Feature-Wunsch, 2026-09-06) ------------------------------
+// --- Review-Modus -----------------------------------------------------------
 // Nach "Quiz beenden" durch die Fragen der abgeschlossenen Runde blaettern und
 // sehen, wie abgestimmt wurde -- rein lesend, ruehrt quiz_sessions/current_question_id
 // nicht an (das ist der Live-Steuerungspfad, siehe openQuestion). question_answers
@@ -685,7 +685,7 @@ function chartBaseOptions({ showLegend, tooltipCallbacks = {} }) {
       // wählt Chart.js bei kleinen Maximalwerten (z.B. 2 Stimmen, oder 1 Punkt
       // nach der Punkte-Umstellung auf 1/Frage) von sich aus Dezimalschritte
       // wie 0.5 -- unsinnig fuer Stimmenzahlen und Punkte, die nur ganzzahlig
-      // vorkommen (Bug gemeldet von Knut, 2026-09-07).
+      // vorkommen.
       y: { ticks: { color: '#94a3b8', precision: 0 }, grid: { color: 'rgba(148,163,184,0.08)' }, beginAtZero: true },
     },
   };
@@ -810,7 +810,7 @@ async function removeParticipant(participant) {
 
 // Dropdown zeigt bewusst nur "Frage N" (+ Status), nie den Prompt-Text: Mit-
 // schueler sehen per Screenshare mit, wie die Runde gesteuert wird, kommende
-// Fragen sollen vorher nicht lesbar sein (Knuts Vorgabe 2026-09-04). Der
+// Fragen sollen vorher nicht lesbar sein. Der
 // volle Text erscheint erst im current-question-panel, sobald eine Frage
 // tatsaechlich offen ist -- das Publikum sieht sie dann ohnehin zeitgleich
 // im Dashboard-Tab.
@@ -915,8 +915,8 @@ function wireControls() {
 // localStorage, damit es nicht ueber Neustarts hinweg auf dem Geraet bleibt.
 // interactive=false (Auto-Close/Auto-Advance/Auto-Finish, siehe unten) fragt nie per
 // window.prompt() nach: ein Hintergrund-Timer hat keine User-Geste, manche Browser
-// lehnen prompt() dort mit "prompt() is not supported" rundweg ab (Bugreport 2026-09-07,
-// error_logs). Ohne gecachtes Passwort bleibt die Automatik dann diesen Tick einfach aus,
+// lehnen prompt() dort mit "prompt() is not supported" rundweg ab. Ohne
+// gecachtes Passwort bleibt die Automatik dann diesen Tick einfach aus,
 // bis der Presenter einmal manuell interagiert (z.B. frisch geladene Seite mit bereits
 // abgelaufenem Timer) -- kein neuer Fehlerzustand, siehe die bereits dokumentierte
 // "Bekannte Grenze" zum Reload waehrend eines laufenden Timers.
@@ -961,7 +961,7 @@ async function callPresenterControl(action, targetQuestionId, roundSize = null, 
 // --- Auto-Advance ------------------------------------------------------
 // Nach dem Schliessen einer Frage (per Timer oder manuell) oeffnet sich die
 // naechste Frage der Runde von selbst, nach einer kurzen Anzeigezeit fuers
-// Reveal (Knuts Vorgabe: Timer-getriebenes Rundenspiel ohne Klick pro Frage).
+// Reveal (Timer-getriebenes Rundenspiel ohne Klick pro Frage).
 // REVEAL_DWELL_MS ist eine eigene Setzung (gewaehlt, kein Sachzwang) -- lang
 // genug, um die aufgedeckte Verteilung/Loesung im Dashboard kurz lesen zu
 // koennen, ohne das Tempo der Runde zu sehr zu bremsen.
@@ -1075,7 +1075,7 @@ function openParticipantDrilldown(participant) {
     // Reveal-Gate wie beim Leaderboard (computeLeaderboard): die aktuell offene,
     // noch nicht geschlossene Frage zeigt hier nie richtig/falsch oder Punkte,
     // sonst verraet dieser Drilldown live, wer schon richtig/falsch geantwortet
-    // hat, waehrend andere noch abstimmen (Knuts Fund 2026-09-07).
+    // hat, waehrend andere noch abstimmen.
     roundQuestions.forEach((question, i) => {
       const response = roundResponses.find((r) => r.participant_id === participant.id && r.question_id === question.id);
       const isOpenQuestion = question.id === session?.current_question_id && !isRevealed(session);

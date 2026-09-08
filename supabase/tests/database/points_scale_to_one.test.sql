@@ -1,5 +1,5 @@
 -- pgTAP-Tests fuer die Punkte-Umstellung von 100 auf 1 (Migration
--- points_scale_to_one, Knuts Vorgabe 2026-09-07).
+-- points_scale_to_one).
 -- Ausfuehren: npx supabase test db --local
 
 begin;

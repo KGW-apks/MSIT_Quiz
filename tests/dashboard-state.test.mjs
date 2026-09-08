@@ -109,9 +109,9 @@ test('computeLeaderboard: Teilnehmer ohne Antworten bekommt 0 Punkte und null-La
   assert.deepEqual(result, [{ participant: { id: 'p1', display_name: 'A' }, totalPoints: 0, answeredCount: 0, correctCount: 0, avgLatencyMs: null }]);
 });
 
-// Bug 2026-09-06: Leaderboard summierte bisher ueber die GESAMTE Historie
-// statt nur die aktuelle Runde. filterToRound() ist der gemeinsame Filter,
-// hier direkt getestet.
+// Leaderboard darf nur ueber die aktuelle Runde summieren, nicht ueber die
+// gesamte Historie. filterToRound() ist der gemeinsame Filter, hier direkt
+// getestet.
 test('filterToRound: ohne roundQuestionIds (null) laesst alles durch', () => {
   const responses = [{ question_id: 'q1', answered_at: '2026-01-01T00:00:00Z' }];
   assert.deepEqual(filterToRound(responses, { roundQuestionIds: null, roundStartedAt: null }), responses);
@@ -142,10 +142,10 @@ test('computeLeaderboard: zaehlt nur Antworten der aktuellen Runde, nicht die al
   assert.equal(result[0].totalPoints, 50);
 });
 
-// Bug 2026-09-07: Leaderboard lief live mit, waehrend eine Frage noch offen
-// war (Multiple-Choice wird sofort bei Insert gewertet) -- auf dem projizierten
-// Dashboard fuer alle sichtbar, ein Schummel-Vektor. Reveal-Gate jetzt auch hier,
-// analog zum Ergebnis-Diagramm der laufenden Frage (isRevealed()).
+// Das Leaderboard darf nicht live mitlaufen, waehrend eine Frage noch offen
+// ist (Multiple-Choice wird sofort bei Insert gewertet) -- auf dem projizierten
+// Dashboard fuer alle sichtbar, ein Schummel-Vektor. Reveal-Gate deshalb auch
+// hier, analog zum Ergebnis-Diagramm der laufenden Frage (isRevealed()).
 test('computeLeaderboard: Antwort auf die AKTUELL OFFENE Frage zaehlt noch nicht mit', () => {
   const participants = [{ id: 'p1', display_name: 'A' }];
   const responses = [{ participant_id: 'p1', question_id: 'q1', points_awarded: 1, is_correct: true }];

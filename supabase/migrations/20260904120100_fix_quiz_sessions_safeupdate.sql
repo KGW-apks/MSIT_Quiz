@@ -1,11 +1,11 @@
--- Live gegen das echte Projekt getestet (2026-09-04): jedes UPDATE auf
--- quiz_sessions in presenter_control() schlug mit "UPDATE requires a WHERE
--- clause" fehl, auch die unveraenderten Aktionen open/close/finish aus der
--- Tag-3-Migration. Postgres-Bordmittel (safeupdate-Extension oder aequivalente
--- Absicherung) verlangt offenbar eine WHERE-Klausel fuer jedes UPDATE, auch
--- innerhalb einer SECURITY DEFINER-Funktion. quiz_sessions ist eine echte
--- Singleton-Tabelle (immer genau eine Zeile), "where true" ist hier korrekt
--- und deklariert explizit "ja, wirklich die eine Zeile".
+-- Jedes UPDATE auf quiz_sessions in presenter_control() schlaegt auf dem
+-- Supabase-Cloud-Projekt mit "UPDATE requires a WHERE clause" fehl, auch die
+-- unveraenderten Aktionen open/close/finish. Ein Postgres-Bordmittel
+-- (safeupdate-Extension oder aequivalente Absicherung) verlangt dort
+-- offenbar eine WHERE-Klausel fuer jedes UPDATE, auch innerhalb einer
+-- SECURITY DEFINER-Funktion. quiz_sessions ist eine echte Singleton-Tabelle
+-- (immer genau eine Zeile), "where true" ist hier korrekt und deklariert
+-- explizit "ja, wirklich die eine Zeile".
 create or replace function public.presenter_control(
   action text,
   target_question_id uuid,

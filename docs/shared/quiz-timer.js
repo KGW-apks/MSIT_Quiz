@@ -12,10 +12,10 @@ export function computeAutoCloseAt({ session, questions }) {
   return new Date(session.question_opened_at).getTime() + question.time_limit_seconds * 1000;
 }
 
-// Auto-Close-Regel: ausschliesslich Zeitablauf. Kein Fruehschluss mehr, sobald alle
-// geantwortet haben (frueher fuer "fruehreveal" gedacht) - der feste Timer muss die volle
-// Laufzeit stehen, sonst wird ein spaeteres Umentscheiden per RLS abgelehnt, weil die
-// Frage dann schon geschlossen ist (Knuts Vorgabe 2026-09-07).
+// Auto-Close-Regel: ausschliesslich Zeitablauf, kein Fruehschluss mehr sobald alle
+// geantwortet haben. Der feste Timer muss die volle Laufzeit stehen, sonst wird
+// ein spaeteres Umentscheiden per RLS abgelehnt, weil die Frage dann schon
+// geschlossen ist.
 export function shouldAutoClose({ session, questions, now }) {
   if (!session || session.status !== 'open') return false;
   const deadline = computeAutoCloseAt({ session, questions });

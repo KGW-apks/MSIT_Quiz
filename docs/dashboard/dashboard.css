@@ -437,8 +437,9 @@
 }
 
 /* Scrollt bei langen Tabellen/Charts allein, damit die Kopfzeile samt X-Button
-   nie mit dem Scrollbalken kollidiert (Bug 2026-09-04: X sass direkt neben dem
-   Scrollbalken, wenn .drilldown-modal komplett scrollte statt nur der Inhalt). */
+   nie mit dem Scrollbalken kollidiert (sonst sitzt der X-Button direkt neben
+   dem Scrollbalken, wenn .drilldown-modal komplett scrollt statt nur der
+   Inhalt). */
 .drilldown-body {
   overflow-y: auto;
 }
