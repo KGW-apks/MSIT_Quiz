@@ -111,7 +111,8 @@ button:disabled {
   margin: 0 0 8px;
 }
 
-#question-options {
+#question-options,
+#solo-question-options {
   display: flex;
   flex-direction: column;
   gap: 12px;
