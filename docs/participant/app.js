@@ -109,8 +109,47 @@ async function tryResumeSoloSession() {
   }
 
   soloSession = data;
-  renderSoloQuestion();
+  await resumeCurrentSoloQuestion();
   return true;
+}
+
+// Reload/erneuter Login mitten in einer laufenden Runde: current_index zeigt
+// evtl. auf eine Frage, die schon beantwortet ist (current_index schaltet erst
+// beim Klick auf "Weiter" weiter, siehe advanceSoloSession). renderSoloQuestion()
+// wuerde sonst wieder ein leeres Formular zeigen, ein erneuter Klick liefe direkt
+// in den Unique-Constraint auf solo_responses (Knuts Live-Fund per F5-Reload).
+async function resumeCurrentSoloQuestion() {
+  const question = currentSoloQuestion();
+  renderSoloQuestion();
+
+  const existing = await loadExistingSoloResponse(question.id);
+  if (!existing) return;
+
+  disableSoloQuestionInputs();
+  const { data: answer, error: answerError } = await supabaseClient
+    .from('question_answers')
+    .select('correct_option, correct_value')
+    .eq('question_id', question.id)
+    .maybeSingle();
+  if (answerError) {
+    logError('participant', answerError.message, { action: 'load_answer_for_resumed_question', question_id: question.id });
+    return;
+  }
+  showSoloFeedback(question, existing, answer ?? {});
+}
+
+async function loadExistingSoloResponse(questionId) {
+  const { data, error } = await supabaseClient
+    .from('solo_responses')
+    .select('*')
+    .eq('solo_session_id', soloSession.id)
+    .eq('question_id', questionId)
+    .maybeSingle();
+  if (error) {
+    logError('participant', error.message, { action: 'load_existing_solo_response', question_id: questionId });
+    return null;
+  }
+  return data;
 }
 
 function showModeSelect() {
@@ -515,9 +554,16 @@ function renderSoloQuestion() {
   showView('solo-question');
 }
 
+function disableSoloQuestionInputs() {
+  document.querySelectorAll('#solo-question-options button, #solo-question-options input').forEach((el) => (el.disabled = true));
+}
+
+function enableSoloQuestionInputs() {
+  document.querySelectorAll('#solo-question-options button, #solo-question-options input').forEach((el) => (el.disabled = false));
+}
+
 async function submitSoloAnswer(question, payload) {
-  const container = document.getElementById('solo-question-options');
-  container.querySelectorAll('button, input').forEach((el) => (el.disabled = true));
+  disableSoloQuestionInputs();
 
   try {
     const { data: response, error } = await supabaseClient
@@ -530,6 +576,23 @@ async function submitSoloAnswer(question, payload) {
       })
       .select()
       .single();
+
+    // 23505 = Unique-Constraint-Verletzung: die Frage hat serverseitig schon eine
+    // Antwort (z.B. Reload zwischen Antworten und "Weiter", siehe resumeCurrentSoloQuestion).
+    // Die vorhandene Antwort laden und deren Ergebnis zeigen statt einen rohen
+    // DB-Fehler (Knuts Live-Fund per F5-Reload).
+    if (error?.code === '23505') {
+      const existing = await loadExistingSoloResponse(question.id);
+      if (existing) {
+        const { data: answer } = await supabaseClient
+          .from('question_answers')
+          .select('correct_option, correct_value')
+          .eq('question_id', question.id)
+          .maybeSingle();
+        showSoloFeedback(question, existing, answer ?? {});
+        return;
+      }
+    }
     if (error) throw error;
 
     // Erst nach dem eigenen Insert lesbar (Reveal-nach-eigener-Antwort-Policy,
@@ -546,7 +609,7 @@ async function submitSoloAnswer(question, payload) {
     const message = err.message ?? String(err);
     logError('participant', message, { action: 'submit_solo_response', question_id: question.id });
     showToast(message);
-    container.querySelectorAll('button, input').forEach((el) => (el.disabled = false));
+    enableSoloQuestionInputs();
   }
 }
 
