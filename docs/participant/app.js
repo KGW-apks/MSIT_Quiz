@@ -412,6 +412,10 @@ function wireModeAndSoloListeners() {
     soloSession = null;
     showModeSelect();
   });
+  document.getElementById('solo-setup-back-button').addEventListener('click', () => {
+    showModeSelect();
+  });
+  document.getElementById('solo-cancel-button').addEventListener('click', cancelSoloSession);
 }
 
 async function loadAllQuestions() {
@@ -601,6 +605,26 @@ async function finishSoloSession() {
     const message = err.message ?? String(err);
     logError('participant', message, { action: 'finish_solo_session' });
     showToast(message);
+  }
+}
+
+// Eigener Status statt "finished" missbrauchen: haelt abgebrochene und
+// tatsaechlich durchgespielte Laeufe auseinander (siehe Migration
+// 20260908130000_solo_session_cancel.sql). tryResumeSoloSession() filtert
+// ohnehin nur auf status = 'running', cancelled taucht dort nie wieder auf.
+async function cancelSoloSession() {
+  const cancelling = soloSession;
+  soloSession = null;
+  showModeSelect();
+
+  if (!cancelling) return;
+  const { error } = await supabaseClient
+    .from('solo_sessions')
+    .update({ status: 'cancelled', finished_at: new Date().toISOString() })
+    .eq('id', cancelling.id);
+
+  if (error) {
+    logError('participant', error.message, { action: 'cancel_solo_session' });
   }
 }
 
