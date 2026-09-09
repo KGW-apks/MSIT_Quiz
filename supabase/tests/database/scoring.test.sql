@@ -5,7 +5,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 
-select extensions.plan(24);
+select extensions.plan(26);
 
 -- Fixtures: drei Teilnehmer, eine Multiple-Choice- und drei Schaetzfragen
 -- (eine normale, eine mit correct_value = 0 als Randfall, eine fuer den
@@ -153,6 +153,17 @@ values ('11111111-1111-1111-1111-111111111111', 'aaaaaaaa-0000-0000-0000-0000000
 reset role;
 reset request.jwt.claims;
 
+-- Schnappschuss von answered_at/latency_ms VOR dem Schliessen, fuer den
+-- Regressionstest unten (15a+15b): rescore_estimation_responses darf diese
+-- Werte nicht veraendern, obwohl es intern ein UPDATE auf responses macht,
+-- das denselben Trigger erneut ausloest (Bug gefunden 2026-09-09, siehe
+-- Migration fix_rescore_overwrites_answered_at).
+create temporary table pre_rescore_snapshot as
+select answered_at, latency_ms from public.responses
+where participant_id = '11111111-1111-1111-1111-111111111111' and question_id = 'aaaaaaaa-0000-0000-0000-000000000002';
+
+select pg_sleep(0.05);
+
 update public.quiz_sessions set status = 'closed';
 select public.rescore_estimation_responses('aaaaaaaa-0000-0000-0000-000000000002');
 
@@ -160,6 +171,23 @@ select extensions.is(
   (select points_awarded from public.responses where participant_id = '11111111-1111-1111-1111-111111111111' and question_id = 'aaaaaaaa-0000-0000-0000-000000000002'),
   100,
   'Schaetzfrage: exakter Treffer ist nach dem Schliessen der einzige Gewinner -> volle Punktzahl'
+);
+
+-- 15a+15b (Regressionstest): rescore_estimation_responses aendert answered_at/
+-- latency_ms nicht, obwohl guess_value dabei unveraendert bleibt und derselbe
+-- Trigger erneut feuert (das reine is_correct/points_awarded-Update darf keine
+-- neue "Antwortzeit" erzeugen).
+
+select extensions.is(
+  (select answered_at from public.responses where participant_id = '11111111-1111-1111-1111-111111111111' and question_id = 'aaaaaaaa-0000-0000-0000-000000000002'),
+  (select answered_at from pre_rescore_snapshot),
+  'rescore_estimation_responses aendert answered_at NICHT (Regressionstest: frueher wurde es bei jedem Update auf now() ueberschrieben)'
+);
+
+select extensions.is(
+  (select latency_ms from public.responses where participant_id = '11111111-1111-1111-1111-111111111111' and question_id = 'aaaaaaaa-0000-0000-0000-000000000002'),
+  (select latency_ms from pre_rescore_snapshot),
+  'rescore_estimation_responses aendert latency_ms NICHT (Regressionstest, gleiche Ursache)'
 );
 
 select extensions.is(
