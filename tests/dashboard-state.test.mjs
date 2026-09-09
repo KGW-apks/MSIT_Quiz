@@ -8,6 +8,7 @@ import {
   computeClosingStats,
   computeQuestionProgress,
   filterToRound,
+  effectiveRoundQuestionIds,
 } from '../docs/shared/dashboard-state.js';
 
 test('isRevealed: nur closed/finished gelten als aufgedeckt', () => {
@@ -115,6 +116,38 @@ test('computeLeaderboard: Teilnehmer ohne Antworten bekommt 0 Punkte und null-La
 test('filterToRound: ohne roundQuestionIds (null) laesst alles durch', () => {
   const responses = [{ question_id: 'q1', answered_at: '2026-01-01T00:00:00Z' }];
   assert.deepEqual(filterToRound(responses, { roundQuestionIds: null, roundStartedAt: null }), responses);
+});
+
+// Regressionstest fuer den "Zurueck zur Lobby zeigt altes Leaderboard weiter
+// an"-Bug (gefunden 2026-09-09): cancel_round setzt round_question_ids in der
+// DB auf null zurueck, filterToRound() laesst bei null aber bewusst alles
+// durch (siehe Test oben) -- effectiveRoundQuestionIds() ist die Stelle, die
+// das fuer die Lobby explizit auf eine leere Runde umbiegt, damit das
+// Dashboard nach einem Reset nicht die Historie der zurueckgesetzten Runde
+// weiter anzeigt.
+test('effectiveRoundQuestionIds: in der Lobby immer leere Runde, auch wenn round_question_ids noch (veraltete) IDs traegt', () => {
+  assert.deepEqual(effectiveRoundQuestionIds({ status: 'lobby', round_question_ids: ['q1', 'q2'] }), []);
+});
+
+test('effectiveRoundQuestionIds: ausserhalb der Lobby wird round_question_ids unveraendert durchgereicht (null bleibt null)', () => {
+  assert.deepEqual(effectiveRoundQuestionIds({ status: 'open', round_question_ids: ['q1'] }), ['q1']);
+  assert.equal(effectiveRoundQuestionIds({ status: 'open', round_question_ids: null }), null);
+  assert.equal(effectiveRoundQuestionIds(null), null);
+});
+
+test('computeLeaderboard: in der Lobby (effectiveRoundQuestionIds) zeigt keine Punkte aus einer bereits zurueckgesetzten Runde mehr', () => {
+  const participants = [{ id: 'p1', display_name: 'Knut' }];
+  const responses = [
+    { participant_id: 'p1', question_id: 'q1', points_awarded: 1, is_correct: true, latency_ms: 4800, answered_at: '2026-09-09T07:18:04Z' },
+  ];
+  const result = computeLeaderboard({
+    participants,
+    responses,
+    roundQuestionIds: effectiveRoundQuestionIds({ status: 'lobby', round_question_ids: null }),
+    roundStartedAt: null,
+  });
+  assert.equal(result[0].totalPoints, 0);
+  assert.equal(result[0].answeredCount, 0);
 });
 
 test('filterToRound: filtert auf question_id UND auf answered_at >= roundStartedAt', () => {

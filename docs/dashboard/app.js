@@ -21,6 +21,7 @@ import {
   computeClosingStats,
   computeQuestionProgress,
   filterToRound,
+  effectiveRoundQuestionIds,
 } from '../shared/dashboard-state.js';
 
 // 'dashboard' als source deckt beide Tabs ab (Presenter ist kein eigener
@@ -495,7 +496,7 @@ function renderLeaderboard() {
   const leaderboard = computeLeaderboard({
     participants,
     responses,
-    roundQuestionIds: session?.round_question_ids ?? null,
+    roundQuestionIds: effectiveRoundQuestionIds(session),
     roundStartedAt: session?.round_started_at ?? null,
     session,
   });

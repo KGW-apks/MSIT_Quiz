@@ -7,6 +7,21 @@ export function isRevealed(session) {
   return session?.status === 'closed' || session?.status === 'finished';
 }
 
+// Bug gefunden 2026-09-09: "Zurueck zur Lobby" (presenter_control: cancel_round)
+// setzt round_question_ids in der DB zurueck auf null, status auf 'lobby'.
+// filterToRound() laesst bei null aber bewusst ALLES durch (siehe deren
+// eigener Test) -- das ist fuer die "noch nie eine Runde gestartet"-Lage
+// richtig (dann ist responses ohnehin leer), zeigte nach einem Reset aber
+// faelschlich die komplette Antwort-Historie der zurueckgesetzten Runde weiter
+// an (Leaderboard blieb mit alten Punkten stehen). In der Lobby gibt es per
+// Definition keine "aktuelle Runde" zum Anzeigen, deshalb hier explizit auf
+// eine leere Runde mappen (leeres Array, nicht null: das filtert alles raus,
+// siehe filterToRound), statt den null-Passthrough zu nutzen.
+export function effectiveRoundQuestionIds(session) {
+  if (session?.status === 'lobby') return [];
+  return session?.round_question_ids ?? null;
+}
+
 function formatNumber(value) {
   return Number.isInteger(value) ? String(value) : value.toFixed(1);
 }
